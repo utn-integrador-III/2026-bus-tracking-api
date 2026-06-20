@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "prepare": "husky",
+    "start": "node index.js",
+    "dev": "node --watch index.js",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "strip:dry": "node tools/strip-comments.mjs --dry-run",
@@ -27,7 +29,10 @@
   },
   "homepage": "https://github.com/utn-integrador-III/2026-bus-tracking-api#readme",
   "dependencies": {
-    "express": "^5.2.1"
+    "@supabase/supabase-js": "^2.108.2",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.16.0",
