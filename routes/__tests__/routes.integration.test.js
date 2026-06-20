@@ -1,6 +1,5 @@
 "use strict";
 
-process.env.AUTH_DEV_BYPASS = "true";
 process.env.SUPABASE_URL = "http://localhost";
 process.env.SUPABASE_ANON_KEY = "anon";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "service";
@@ -12,10 +11,6 @@ const routesRepository = require("../../repositories/routesRepository");
 const buildApp = require("../../app");
 
 const app = buildApp();
-
-const ADMIN = { "x-dev-user-id": "dev-admin", "x-dev-role": "Admin" };
-const PASSENGER = { "x-dev-user-id": "dev-pax", "x-dev-role": "Passenger" };
-const DRIVER = { "x-dev-user-id": "dev-drv", "x-dev-role": "Driver" };
 
 const validBody = {
   name: "SJ-PT",
@@ -54,58 +49,54 @@ describe("health", () => {
   });
 });
 
-describe("autenticacion", () => {
-  test("sin cabeceras dev -> 401", async () => {
-    const res = await request(app).get("/api/passenger/routes");
-    expect(res.status).toBe(401);
-    expect(res.body.error.code).toBe("AUTH_TOKEN_MISSING");
-  });
-
-  test("rol invalido -> 401", async () => {
-    const res = await request(app)
-      .get("/api/passenger/routes")
-      .set({ "x-dev-user-id": "x", "x-dev-role": "Hacker" });
-    expect(res.status).toBe(401);
-  });
-});
-
 describe("GET /api/passenger/routes", () => {
-  test("Passenger ve solo rutas activas", async () => {
+  test("lista solo rutas activas (sin auth)", async () => {
     routesRepository.listRoutes.mockResolvedValue([sampleRow]);
-    const res = await request(app).get("/api/passenger/routes").set(PASSENGER);
+    const res = await request(app).get("/api/passenger/routes");
     expect(res.status).toBe(200);
     expect(routesRepository.listRoutes).toHaveBeenCalledWith({ includeInactive: false });
     expect(res.body[0]).toHaveProperty("status", "Active");
     expect(res.body[0]).not.toHaveProperty("is_active");
   });
-
-  test("Driver tambien puede consultar", async () => {
-    routesRepository.listRoutes.mockResolvedValue([]);
-    const res = await request(app).get("/api/passenger/routes").set(DRIVER);
-    expect(res.status).toBe(200);
-  });
 });
 
 describe("GET /api/admin/routes", () => {
-  test("Admin ve la lista completa", async () => {
+  test("lista la coleccion completa (incluye inactivas)", async () => {
     routesRepository.listRoutes.mockResolvedValue([sampleRow]);
-    const res = await request(app).get("/api/admin/routes").set(ADMIN);
+    const res = await request(app).get("/api/admin/routes");
     expect(res.status).toBe(200);
     expect(routesRepository.listRoutes).toHaveBeenCalledWith({ includeInactive: true });
     expect(res.body[0]).toHaveProperty("is_active", true);
   });
+});
 
-  test("Passenger recibe 403", async () => {
-    const res = await request(app).get("/api/admin/routes").set(PASSENGER);
-    expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe("FORBIDDEN_ROLE");
+describe("GET /api/admin/routes/:id", () => {
+  test("ruta existente -> 200 forma admin", async () => {
+    routesRepository.getRouteById.mockResolvedValue(sampleRow);
+    const res = await request(app).get(`/api/admin/routes/${UUID}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("id", UUID);
+    expect(res.body).toHaveProperty("is_active", true);
+  });
+
+  test("ruta inexistente -> 404", async () => {
+    routesRepository.getRouteById.mockResolvedValue(null);
+    const res = await request(app).get(`/api/admin/routes/${UUID}`);
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe("ROUTE_NOT_FOUND");
+  });
+
+  test("id no UUID -> 400", async () => {
+    const res = await request(app).get("/api/admin/routes/not-a-uuid");
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("ROUTE_VALIDATION_FAILED");
   });
 });
 
 describe("POST /api/admin/routes", () => {
-  test("Admin crea -> 201 { id }", async () => {
+  test("crea -> 201 { id }", async () => {
     routesRepository.createRoute.mockResolvedValue(sampleRow);
-    const res = await request(app).post("/api/admin/routes").set(ADMIN).send(validBody);
+    const res = await request(app).post("/api/admin/routes").send(validBody);
     expect(res.status).toBe(201);
     expect(res.body).toEqual({ id: UUID });
   });
@@ -113,7 +104,6 @@ describe("POST /api/admin/routes", () => {
   test("geometria invalida -> 400", async () => {
     const res = await request(app)
       .post("/api/admin/routes")
-      .set(ADMIN)
       .send({ ...validBody, geometry_geojson: { type: "LineString", coordinates: [[-84, 9]] } });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("ROUTE_VALIDATION_FAILED");
@@ -122,74 +112,81 @@ describe("POST /api/admin/routes", () => {
   test("clave desconocida en el body -> 400", async () => {
     const res = await request(app)
       .post("/api/admin/routes")
-      .set(ADMIN)
       .send({ ...validBody, role: "Admin" });
     expect(res.status).toBe(400);
-  });
-
-  test("Passenger no puede crear -> 403", async () => {
-    const res = await request(app).post("/api/admin/routes").set(PASSENGER).send(validBody);
-    expect(res.status).toBe(403);
-    expect(routesRepository.createRoute).not.toHaveBeenCalled();
   });
 });
 
 describe("PUT /api/admin/routes/:id", () => {
   test("id no UUID -> 400", async () => {
-    const res = await request(app)
-      .put("/api/admin/routes/not-a-uuid")
-      .set(ADMIN)
-      .send({ name: "Nuevo" });
+    const res = await request(app).put("/api/admin/routes/not-a-uuid").send({ name: "Nuevo" });
     expect(res.status).toBe(400);
   });
 
-  test("Admin edita ruta existente -> 200 { updated: true }", async () => {
+  test("ruta existente -> 200 { updated: true }", async () => {
     routesRepository.getRouteById.mockResolvedValue(sampleRow);
     routesRepository.updateRoute.mockResolvedValue(sampleRow);
-    const res = await request(app)
-      .put(`/api/admin/routes/${UUID}`)
-      .set(ADMIN)
-      .send({ name: "Nuevo" });
+    const res = await request(app).put(`/api/admin/routes/${UUID}`).send({ name: "Nuevo" });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ updated: true });
   });
 
   test("ruta inexistente -> 404", async () => {
     routesRepository.getRouteById.mockResolvedValue(null);
-    const res = await request(app)
-      .put(`/api/admin/routes/${UUID}`)
-      .set(ADMIN)
-      .send({ name: "Nuevo" });
+    const res = await request(app).put(`/api/admin/routes/${UUID}`).send({ name: "Nuevo" });
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe("ROUTE_NOT_FOUND");
   });
 });
 
 describe("DELETE /api/admin/routes/:id", () => {
-  test("Admin desactiva -> 200 { deleted: true }", async () => {
+  test("desactiva -> 200 { deleted: true }", async () => {
     routesRepository.getRouteById.mockResolvedValue(sampleRow);
     routesRepository.setRouteActive.mockResolvedValue({ ...sampleRow, is_active: false });
-    const res = await request(app).delete(`/api/admin/routes/${UUID}`).set(ADMIN);
+    const res = await request(app).delete(`/api/admin/routes/${UUID}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ deleted: true });
     expect(routesRepository.setRouteActive).toHaveBeenCalledWith(UUID, false);
   });
 
   test("id no UUID -> 400", async () => {
-    const res = await request(app).delete("/api/admin/routes/xxx").set(ADMIN);
+    const res = await request(app).delete("/api/admin/routes/xxx");
     expect(res.status).toBe(400);
   });
 
   test("ruta inexistente -> 404", async () => {
     routesRepository.getRouteById.mockResolvedValue(null);
-    const res = await request(app).delete(`/api/admin/routes/${UUID}`).set(ADMIN);
+    const res = await request(app).delete(`/api/admin/routes/${UUID}`);
     expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/admin/routes/:id/reactivate", () => {
+  test("reactiva -> 200 { reactivated: true }", async () => {
+    routesRepository.getRouteById.mockResolvedValue({ ...sampleRow, is_active: false });
+    routesRepository.setRouteActive.mockResolvedValue({ ...sampleRow, is_active: true });
+    const res = await request(app).post(`/api/admin/routes/${UUID}/reactivate`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ reactivated: true });
+    expect(routesRepository.setRouteActive).toHaveBeenCalledWith(UUID, true);
+  });
+
+  test("ruta inexistente -> 404", async () => {
+    routesRepository.getRouteById.mockResolvedValue(null);
+    const res = await request(app).post(`/api/admin/routes/${UUID}/reactivate`);
+    expect(res.status).toBe(404);
+    expect(routesRepository.setRouteActive).not.toHaveBeenCalled();
+  });
+
+  test("id no UUID -> 400", async () => {
+    const res = await request(app).post("/api/admin/routes/xxx/reactivate");
+    expect(res.status).toBe(400);
   });
 });
 
 describe("rutas no resueltas", () => {
   test("GET inexistente -> 404 NOT_FOUND", async () => {
-    const res = await request(app).get("/api/unknown").set(ADMIN);
+    const res = await request(app).get("/api/unknown");
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe("NOT_FOUND");
   });

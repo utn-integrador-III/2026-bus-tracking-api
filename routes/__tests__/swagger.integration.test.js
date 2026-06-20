@@ -1,6 +1,5 @@
 "use strict";
 
-process.env.AUTH_DEV_BYPASS = "true";
 process.env.SUPABASE_URL = "http://localhost";
 process.env.SUPABASE_ANON_KEY = "anon";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "service";
@@ -27,8 +26,10 @@ describe("documentacion OpenAPI", () => {
     expect(Object.keys(paths["/api/admin/routes"]).sort()).toEqual(["get", "post"]);
     expect(Object.keys(paths["/api/admin/routes/{id}"]).sort()).toEqual([
       "delete",
+      "get",
       "put",
     ]);
+    expect(Object.keys(paths["/api/admin/routes/{id}/reactivate"])).toContain("post");
     expect(Object.keys(paths["/api/passenger/routes"])).toContain("get");
   });
 

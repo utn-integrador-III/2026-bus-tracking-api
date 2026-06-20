@@ -34,12 +34,11 @@ spec se sirva y que documente los endpoints existentes.
 
 ## Autenticación en la documentación
 
-El spec declara dos esquemas de seguridad:
+La autenticación (JWT + RBAC) está **temporalmente desactivada** mientras no exista el módulo
+de usuarios, así que el spec **no declara esquemas de seguridad** y los endpoints aparecen
+**abiertos** (sin candado). Se pueden probar desde Swagger UI sin token.
 
-- **`bearerAuth`** — `Authorization: Bearer <jwt>` (Supabase Auth). Modo de producción.
-- **`devUserId` / `devRole`** — cabeceras `x-dev-user-id` y `x-dev-role`, **solo** cuando
-  `AUTH_DEV_BYPASS=true` (desarrollo local). Permiten probar el CRUD desde Swagger UI sin
-  Supabase Auth usando el botón **Authorize**.
-
-El rol nunca se lee del body: se resuelve desde el token (o el bypass) — ver
+Cuando se reactive el middleware se volverán a documentar el esquema `bearerAuth`
+(`Authorization: Bearer <jwt>` de Supabase Auth) y las respuestas `401`/`403`. El rol nunca
+se leerá del body: se resolverá desde `public.user_roles` a partir del token — ver
 [`docs/routes-module.md`](routes-module.md).

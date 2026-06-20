@@ -57,4 +57,8 @@ describe("envelopes de mutacion", () => {
   test("deleted devuelve deleted true", () => {
     expect(routeView.deleted()).toEqual({ deleted: true });
   });
+
+  test("reactivated devuelve reactivated true", () => {
+    expect(routeView.reactivated()).toEqual({ reactivated: true });
+  });
 });

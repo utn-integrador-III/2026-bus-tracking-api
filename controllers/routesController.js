@@ -10,6 +10,11 @@ const listAdminRoutes = asyncHandler(async function listAdminRoutes(_req, res) {
   res.status(HTTP_STATUS.OK).json(routeView.presentAdminRoutes(rows));
 });
 
+const getRoute = asyncHandler(async function getRoute(req, res) {
+  const row = await routesService.getById(req.valid.params.id);
+  res.status(HTTP_STATUS.OK).json(routeView.presentAdminRoute(row));
+});
+
 const createRoute = asyncHandler(async function createRoute(req, res) {
   const row = await routesService.create(req.valid.body);
   res.status(HTTP_STATUS.CREATED).json(routeView.created(row));
@@ -25,6 +30,11 @@ const deactivateRoute = asyncHandler(async function deactivateRoute(req, res) {
   res.status(HTTP_STATUS.OK).json(routeView.deleted());
 });
 
+const reactivateRoute = asyncHandler(async function reactivateRoute(req, res) {
+  await routesService.reactivate(req.valid.params.id);
+  res.status(HTTP_STATUS.OK).json(routeView.reactivated());
+});
+
 const listConsumerRoutes = asyncHandler(async function listConsumerRoutes(_req, res) {
   const rows = await routesService.listActive();
   res.status(HTTP_STATUS.OK).json(routeView.presentConsumerRoutes(rows));
@@ -32,8 +42,10 @@ const listConsumerRoutes = asyncHandler(async function listConsumerRoutes(_req, 
 
 module.exports = {
   listAdminRoutes,
+  getRoute,
   createRoute,
   updateRoute,
   deactivateRoute,
+  reactivateRoute,
   listConsumerRoutes,
 };

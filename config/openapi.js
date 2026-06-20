@@ -164,49 +164,30 @@ const openapiDocument = {
     title: "Bus Tracking API - Rutas",
     version: "1.0.0",
     description:
-      "Documentacion de los endpoints del modulo de Rutas (CRUD para Administrador y " +
-      "consulta para consumidores autenticados). El rol nunca se lee del body: se resuelve " +
-      "desde el token JWT (o, en desarrollo, desde las cabeceras del bypass). " +
-      "FR-06 / FR-15 / FR-16 / FR-23.",
+      "Documentacion de los endpoints del modulo de Rutas (CRUD administrativo y consulta " +
+      "para consumidores). FR-06 / FR-15 / FR-16 / FR-23. " +
+      "NOTA: la autenticacion (JWT + RBAC) esta temporalmente DESACTIVADA; los endpoints " +
+      "estan abiertos hasta que exista el modulo de usuarios, momento en que se reactivara " +
+      "el middleware. GET /api/admin/routes/{id} y la reactivacion son endpoints aditivos, " +
+      "fuera del CSV oficial.",
   },
   servers: [{ url: "/", description: "Servidor actual" }],
   tags: [
     { name: "Health", description: "Estado del servicio." },
     {
       name: "Admin - Rutas",
-      description: `CRUD de rutas. Solo rol ${ROLES.ADMIN}.`,
+      description:
+        `CRUD de rutas (conceptualmente rol ${ROLES.ADMIN}). ` +
+        "Auth temporalmente desactivada: endpoints abiertos.",
     },
     {
       name: "Consumidor - Rutas",
-      description: `Consulta de rutas activas. Roles ${ROLES.PASSENGER}, ${ROLES.DRIVER}, ${ROLES.ADMIN}.`,
+      description:
+        `Consulta de rutas activas (roles ${ROLES.PASSENGER}, ${ROLES.DRIVER}, ${ROLES.ADMIN}). ` +
+        "Auth temporalmente desactivada: endpoint abierto.",
     },
   ],
   components: {
-    securitySchemes: {
-      bearerAuth: {
-        type: "http",
-        scheme: "bearer",
-        bearerFormat: "JWT",
-        description:
-          "Token JWT de Supabase Auth en 'Authorization: Bearer <token>'. " +
-          "El rol se resuelve desde el claim del token.",
-      },
-      devUserId: {
-        type: "apiKey",
-        in: "header",
-        name: "x-dev-user-id",
-        description:
-          "Solo cuando AUTH_DEV_BYPASS=true (desarrollo). Identificador simulado del usuario.",
-      },
-      devRole: {
-        type: "apiKey",
-        in: "header",
-        name: "x-dev-role",
-        description:
-          "Solo cuando AUTH_DEV_BYPASS=true (desarrollo). Rol simulado: " +
-          `${ROLES.PASSENGER}, ${ROLES.DRIVER} o ${ROLES.ADMIN}.`,
-      },
-    },
     schemas: {
       ErrorEnvelope: errorEnvelopeSchema,
       RouteGeometry: routeGeometrySchema,
@@ -229,6 +210,11 @@ const openapiDocument = {
         required: ["deleted"],
         properties: { deleted: { type: "boolean", enum: [true] } },
       },
+      ReactivatedResponse: {
+        type: "object",
+        required: ["reactivated"],
+        properties: { reactivated: { type: "boolean", enum: [true] } },
+      },
       HealthResponse: {
         type: "object",
         required: ["status"],
@@ -236,13 +222,11 @@ const openapiDocument = {
       },
     },
   },
-  security: [{ bearerAuth: [] }, { devUserId: [], devRole: [] }],
   paths: {
     "/health": {
       get: {
         tags: ["Health"],
         summary: "Estado del servicio",
-        security: [],
         responses: {
           200: {
             description: "El servicio responde.",
@@ -272,14 +256,12 @@ const openapiDocument = {
               },
             },
           },
-          401: errorResponse("Token ausente o invalido."),
-          403: errorResponse("El rol autenticado no es Administrador."),
         },
       },
       post: {
         tags: ["Admin - Rutas"],
         summary: "Crea una ruta",
-        description: "EP-05. Solo Administrador.",
+        description: "EP-05. Operacion administrativa.",
         requestBody: {
           required: true,
           content: {
@@ -298,16 +280,32 @@ const openapiDocument = {
             },
           },
           400: errorResponse("Body invalido (validacion zod / GeoJSON / clave desconocida)."),
-          401: errorResponse("Token ausente o invalido."),
-          403: errorResponse("El rol autenticado no es Administrador."),
         },
       },
     },
     "/api/admin/routes/{id}": {
+      get: {
+        tags: ["Admin - Rutas"],
+        summary: "Obtiene una ruta por id (incluye inactivas)",
+        description: "Endpoint aditivo (fuera del CSV oficial). Operacion administrativa.",
+        parameters: [idPathParam],
+        responses: {
+          200: {
+            description: "Ruta en forma administrativa.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/AdminRoute" },
+              },
+            },
+          },
+          400: errorResponse("Id no es UUID."),
+          404: errorResponse("La ruta no existe."),
+        },
+      },
       put: {
         tags: ["Admin - Rutas"],
         summary: "Edita una ruta",
-        description: "EP-06. Solo Administrador. Requiere al menos un campo.",
+        description: "EP-06. Operacion administrativa. Requiere al menos un campo.",
         parameters: [idPathParam],
         requestBody: {
           required: true,
@@ -327,15 +325,13 @@ const openapiDocument = {
             },
           },
           400: errorResponse("Id no es UUID o body invalido."),
-          401: errorResponse("Token ausente o invalido."),
-          403: errorResponse("El rol autenticado no es Administrador."),
           404: errorResponse("La ruta no existe."),
         },
       },
       delete: {
         tags: ["Admin - Rutas"],
         summary: "Desactiva una ruta (soft-delete)",
-        description: "EP-07. Solo Administrador. Marca is_active=false.",
+        description: "EP-07. Operacion administrativa. Marca is_active=false.",
         parameters: [idPathParam],
         responses: {
           200: {
@@ -347,8 +343,26 @@ const openapiDocument = {
             },
           },
           400: errorResponse("Id no es UUID."),
-          401: errorResponse("Token ausente o invalido."),
-          403: errorResponse("El rol autenticado no es Administrador."),
+          404: errorResponse("La ruta no existe."),
+        },
+      },
+    },
+    "/api/admin/routes/{id}/reactivate": {
+      post: {
+        tags: ["Admin - Rutas"],
+        summary: "Reactiva una ruta (deshace el soft-delete)",
+        description: "Endpoint aditivo (fuera del CSV oficial). Marca is_active=true.",
+        parameters: [idPathParam],
+        responses: {
+          200: {
+            description: "Ruta reactivada.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ReactivatedResponse" },
+              },
+            },
+          },
+          400: errorResponse("Id no es UUID."),
           404: errorResponse("La ruta no existe."),
         },
       },
@@ -357,8 +371,7 @@ const openapiDocument = {
       get: {
         tags: ["Consumidor - Rutas"],
         summary: "Lista de rutas activas",
-        description:
-          "EP-14. Cualquier rol autenticado (Passenger, Driver, Admin). Devuelve solo rutas activas.",
+        description: "EP-14. Devuelve solo rutas activas.",
         responses: {
           200: {
             description: "Arreglo de rutas en forma de consumidor.",
@@ -371,7 +384,6 @@ const openapiDocument = {
               },
             },
           },
-          401: errorResponse("Token ausente o invalido."),
         },
       },
     },

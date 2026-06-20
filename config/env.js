@@ -8,14 +8,6 @@ function readString(key, fallback) {
   return String(raw);
 }
 
-function readBool(key, fallback) {
-  const raw = process.env[key];
-  if (raw === undefined || raw === null || raw === "") {
-    return fallback;
-  }
-  return ["1", "true", "yes", "on"].includes(String(raw).toLowerCase());
-}
-
 function readInt(key, fallback) {
   const raw = process.env[key];
   if (raw === undefined || raw === null || raw === "") {
@@ -43,7 +35,6 @@ const env = Object.freeze({
   supabaseUrl: readString("SUPABASE_URL", ""),
   supabaseAnonKey: readString("SUPABASE_ANON_KEY", ""),
   supabaseServiceRoleKey: readString("SUPABASE_SERVICE_ROLE_KEY", ""),
-  authDevBypass: readBool("AUTH_DEV_BYPASS", false),
 });
 
 function assertSupabaseConfig() {

@@ -45,6 +45,10 @@ function deleted() {
   return { deleted: true };
 }
 
+function reactivated() {
+  return { reactivated: true };
+}
+
 module.exports = {
   presentAdminRoute,
   presentAdminRoutes,
@@ -53,4 +57,5 @@ module.exports = {
   created,
   updated,
   deleted,
+  reactivated,
 };

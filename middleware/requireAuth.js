@@ -1,6 +1,5 @@
 "use strict";
 
-const { env } = require("../config/env");
 const { verifyAccessToken } = require("../database/supabaseClient");
 const { isValidRole, ROLES } = require("../constants/roles");
 const AppError = require("../utils/AppError");
@@ -28,32 +27,7 @@ function resolveRoleFromUser(user) {
   return isValidRole(role) ? role : ROLES.PASSENGER;
 }
 
-function resolveFromDevBypass(req) {
-  const userId = req.headers["x-dev-user-id"];
-  const role = req.headers["x-dev-role"];
-  if (!userId || !role) {
-    throw new AppError(
-      HTTP_STATUS.UNAUTHORIZED,
-      ERROR_CODES.AUTH_TOKEN_MISSING,
-      "Bypass de desarrollo activo: faltan cabeceras x-dev-user-id / x-dev-role.",
-    );
-  }
-  if (!isValidRole(role)) {
-    throw new AppError(
-      HTTP_STATUS.UNAUTHORIZED,
-      ERROR_CODES.AUTH_TOKEN_INVALID,
-      "Bypass de desarrollo: x-dev-role no es un rol valido.",
-    );
-  }
-  return { userId: String(userId), role };
-}
-
 const requireAuth = asyncHandler(async function requireAuth(req, _res, next) {
-  if (env.authDevBypass) {
-    req.auth = resolveFromDevBypass(req);
-    return next();
-  }
-
   const token = extractBearerToken(req);
   if (!token) {
     throw new AppError(

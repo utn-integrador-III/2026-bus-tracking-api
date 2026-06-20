@@ -55,6 +55,14 @@ async function update(id, payload) {
   return updated;
 }
 
+async function getById(id) {
+  const existing = await routesRepository.getRouteById(id);
+  if (!existing) {
+    throw notFound();
+  }
+  return existing;
+}
+
 async function deactivate(id) {
   const existing = await routesRepository.getRouteById(id);
   if (!existing) {
@@ -63,4 +71,20 @@ async function deactivate(id) {
   return routesRepository.setRouteActive(id, false);
 }
 
-module.exports = { listAll, listActive, create, update, deactivate };
+async function reactivate(id) {
+  const existing = await routesRepository.getRouteById(id);
+  if (!existing) {
+    throw notFound();
+  }
+  return routesRepository.setRouteActive(id, true);
+}
+
+module.exports = {
+  listAll,
+  listActive,
+  getById,
+  create,
+  update,
+  deactivate,
+  reactivate,
+};
