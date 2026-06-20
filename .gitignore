@@ -1,4 +1,5 @@
 .claude
 .env
+.mcp.json
 node_modules
 coverage
