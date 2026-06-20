@@ -10,7 +10,6 @@ const row = {
   geometry_geojson: { type: "LineString", coordinates: [] },
   is_active: true,
   created_at: "2026-06-20T12:00:00.000Z",
-  updated_at: "2026-06-20T12:00:00.000Z",
 };
 
 describe("presentAdminRoute", () => {
@@ -24,7 +23,6 @@ describe("presentAdminRoute", () => {
       geometry_geojson: { type: "LineString", coordinates: [] },
       is_active: true,
       created_at: "2026-06-20T12:00:00.000Z",
-      updated_at: "2026-06-20T12:00:00.000Z",
     });
   });
 });

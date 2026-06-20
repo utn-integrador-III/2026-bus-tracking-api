@@ -60,8 +60,7 @@ privilegios (FR-02 / FR-04 / FR-05).
   "destination": "Puntarenas",
   "geometry_geojson": { "type": "LineString", "coordinates": [[-84.07, 9.93], [-84.75, 9.98]] },
   "is_active": true,
-  "created_at": "2026-06-20T12:00:00.000Z",
-  "updated_at": "2026-06-20T12:00:00.000Z"
+  "created_at": "2026-06-20T12:00:00.000Z"
 }
 ```
 
@@ -135,32 +134,47 @@ integrarse y opera de dos formas:
 
 ## Base de datos
 
-### Migración
+### Estado del esquema
 
-`database/migrations/0001_create_routes.sql` crea la tabla `public.routes`:
+La tabla `public.routes` **ya existe** en el proyecto Supabase (creada por las migraciones
+base del equipo, `init_bus_tracking_schema`). Sus columnas y políticas RLS ya estaban
+definidas; esta tarea solo añade la columna de soft-delete que el CRUD necesita.
 
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | `uuid` | PK, `gen_random_uuid()` |
-| `name` | `varchar(255)` | not null |
-| `origin` | `varchar(255)` | not null |
-| `destination` | `varchar(255)` | not null |
-| `geometry_geojson` | `jsonb` | not null (GeoJSON) |
-| `is_active` | `boolean` | not null, default `true` (soft-delete) |
-| `created_at` | `timestamptz` | not null, default `now()` |
-| `updated_at` | `timestamptz` | not null, default `now()`, trigger `set_updated_at` |
+| Columna | Tipo | Notas | Origen |
+|---|---|---|---|
+| `id` | `uuid` | PK, `gen_random_uuid()` | esquema base |
+| `name` | `varchar` | not null | esquema base |
+| `origin` | `varchar` | not null | esquema base |
+| `destination` | `varchar` | not null | esquema base |
+| `geometry_geojson` | `jsonb` | not null (GeoJSON) | esquema base |
+| `created_at` | `timestamptz` | default `now()` | esquema base |
+| `is_active` | `boolean` | not null, default `true` (soft-delete) | **esta migración** |
 
-Incluye índice `routes_is_active_idx` y habilita RLS sin políticas. La API usa la
-service-role key (que omite RLS) y aplica el RBAC en el middleware; RLS queda activado como
-defensa en profundidad para bloquear el acceso anónimo directo.
+El proyecto **no usa `updated_at`** en ninguna tabla (solo `created_at`); el módulo se alinea
+con esa convención. El soft-delete vía `is_active` sigue el mismo patrón que `public.users`.
 
-### Cómo aplicar la migración
+### Migración aplicada
 
-- **Vía MCP de Supabase**: ejecutar el contenido de `0001_create_routes.sql` contra el
-  proyecto; verificar que existan la tabla `routes` y el trigger `routes_set_updated_at`.
-- **Manual**: pegar el SQL en el SQL Editor del panel de Supabase.
+`database/migrations/0001_routes_add_is_active.sql` (aditiva):
 
-El `.sql` versionado en el repo es la fuente de verdad del esquema.
+```sql
+alter table public.routes
+  add column if not exists is_active boolean not null default true;
+create index if not exists routes_is_active_idx on public.routes (is_active);
+```
+
+Aplicada vía MCP de Supabase como migración `routes_add_is_active_soft_delete`.
+
+### RLS
+
+La tabla ya tiene RLS habilitado con políticas que coinciden con el RBAC del módulo:
+
+- `routes_select_all` — `SELECT` para cualquier `authenticated`.
+- `routes_insert_admin` / `routes_update_admin` / `routes_delete_admin` — escritura solo si
+  `is_admin()`.
+
+La API usa la service-role key (que omite RLS) y aplica el RBAC en el middleware; las
+políticas RLS quedan como segunda capa de defensa a nivel de fila.
 
 ## Variables de entorno
 

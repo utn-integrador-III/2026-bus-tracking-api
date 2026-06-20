@@ -38,7 +38,6 @@ const sampleRow = {
   geometry_geojson: validBody.geometry_geojson,
   is_active: true,
   created_at: "2026-06-20T12:00:00.000Z",
-  updated_at: "2026-06-20T12:00:00.000Z",
 };
 
 const UUID = sampleRow.id;

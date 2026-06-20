@@ -6,7 +6,7 @@ const { HTTP_STATUS } = require("../constants/httpStatus");
 const { ERROR_CODES } = require("../constants/errorCodes");
 
 const TABLE = "routes";
-const COLUMNS = "id, name, origin, destination, geometry_geojson, is_active, created_at, updated_at";
+const COLUMNS = "id, name, origin, destination, geometry_geojson, is_active, created_at";
 
 function databaseError(error) {
   return new AppError(
