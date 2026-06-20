@@ -2,7 +2,9 @@
 
 const express = require("express");
 const cors = require("cors");
+const swaggerUi = require("swagger-ui-express");
 const { env } = require("./config/env");
+const { openapiDocument } = require("./config/openapi");
 const apiRouter = require("./routes");
 const notFound = require("./middleware/notFound");
 const errorHandler = require("./middleware/errorHandler");
@@ -21,6 +23,12 @@ function buildApp() {
   app.get("/health", (_req, res) => {
     res.status(200).json({ status: "ok" });
   });
+
+  app.get("/api/docs.json", (_req, res) => {
+    res.status(200).json(openapiDocument);
+  });
+
+  app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openapiDocument, { explorer: true }));
 
   app.use("/api", apiRouter);
 
