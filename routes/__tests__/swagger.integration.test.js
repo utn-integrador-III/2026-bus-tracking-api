@@ -16,7 +16,7 @@ describe("documentacion OpenAPI", () => {
     const res = await request(app).get("/api/docs.json");
     expect(res.status).toBe(200);
     expect(res.body.openapi).toBe("3.0.3");
-    expect(res.body.info.title).toBe("Bus Tracking API - Rutas");
+    expect(res.body.info.title).toBe("Bus Tracking API - Rutas y Viajes");
   });
 
   test("el spec documenta todos los endpoints existentes", async () => {
@@ -31,6 +31,19 @@ describe("documentacion OpenAPI", () => {
     ]);
     expect(Object.keys(paths["/api/admin/routes/{id}/reactivate"])).toContain("post");
     expect(Object.keys(paths["/api/passenger/routes"])).toContain("get");
+  });
+
+  test("el spec documenta los endpoints de viajes", async () => {
+    const res = await request(app).get("/api/docs.json");
+    const { paths } = res.body;
+    expect(Object.keys(paths["/api/admin/trips"]).sort()).toEqual(["get", "post"]);
+    expect(Object.keys(paths["/api/admin/trips/{id}"]).sort()).toEqual([
+      "delete",
+      "get",
+      "put",
+    ]);
+    expect(Object.keys(paths["/api/admin/trips/{id}/reactivate"])).toContain("post");
+    expect(Object.keys(paths["/api/passenger/trips"])).toContain("get");
   });
 
   test("no exige autenticacion para servir la documentacion", async () => {

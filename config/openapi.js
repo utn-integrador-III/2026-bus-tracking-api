@@ -2,6 +2,7 @@
 
 const { ROLES } = require("../constants/roles");
 const { ERROR_CODES } = require("../constants/errorCodes");
+const { TRIP_STATUS_VALUES } = require("../constants/tripStatus");
 
 const errorEnvelopeSchema = {
   type: "object",
@@ -141,6 +142,84 @@ const updateRouteRequestSchema = {
   example: { name: "San Jose - Puntarenas (revisada)" },
 };
 
+const tripStatusSchema = {
+  type: "string",
+  enum: TRIP_STATUS_VALUES,
+};
+
+const adminTripSchema = {
+  type: "object",
+  required: [
+    "id",
+    "route_id",
+    "bus_id",
+    "driver_id",
+    "departure_time",
+    "status",
+    "created_at",
+  ],
+  properties: {
+    id: { type: "string", format: "uuid" },
+    route_id: { type: "string", format: "uuid" },
+    bus_id: { type: "string", format: "uuid" },
+    driver_id: { type: "string", format: "uuid" },
+    departure_time: { type: "string", format: "date-time" },
+    arrival_time: { type: "string", format: "date-time", nullable: true },
+    status: { $ref: "#/components/schemas/TripStatus" },
+    created_at: { type: "string", format: "date-time", nullable: true },
+    started_at: { type: "string", format: "date-time", nullable: true },
+    ended_at: { type: "string", format: "date-time", nullable: true },
+  },
+};
+
+const consumerTripSchema = {
+  type: "object",
+  required: ["id", "route_id", "bus_id", "departure_time", "status"],
+  properties: {
+    id: { type: "string", format: "uuid" },
+    route_id: { type: "string", format: "uuid" },
+    bus_id: { type: "string", format: "uuid" },
+    departure_time: { type: "string", format: "date-time" },
+    arrival_time: { type: "string", format: "date-time", nullable: true },
+    status: { $ref: "#/components/schemas/TripStatus" },
+  },
+};
+
+const createTripRequestSchema = {
+  type: "object",
+  required: ["route_id", "bus_id", "driver_id", "departure_time"],
+  additionalProperties: false,
+  properties: {
+    route_id: { type: "string", format: "uuid" },
+    bus_id: { type: "string", format: "uuid" },
+    driver_id: { type: "string", format: "uuid" },
+    departure_time: { type: "string", format: "date-time" },
+    arrival_time: { type: "string", format: "date-time", nullable: true },
+    status: { $ref: "#/components/schemas/TripStatus" },
+  },
+  example: {
+    route_id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+    bus_id: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    driver_id: "1f9e2c3a-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+    departure_time: "2026-06-21T08:00:00Z",
+  },
+};
+
+const updateTripRequestSchema = {
+  type: "object",
+  minProperties: 1,
+  additionalProperties: false,
+  properties: {
+    route_id: { type: "string", format: "uuid" },
+    bus_id: { type: "string", format: "uuid" },
+    driver_id: { type: "string", format: "uuid" },
+    departure_time: { type: "string", format: "date-time" },
+    arrival_time: { type: "string", format: "date-time", nullable: true },
+    status: { $ref: "#/components/schemas/TripStatus" },
+  },
+  example: { status: "Delayed" },
+};
+
 const errorResponse = (description) => ({
   description,
   content: {
@@ -154,22 +233,23 @@ const idPathParam = {
   name: "id",
   in: "path",
   required: true,
-  description: "Identificador UUID de la ruta.",
+  description: "Identificador UUID del recurso.",
   schema: { type: "string", format: "uuid" },
 };
 
 const openapiDocument = {
   openapi: "3.0.3",
   info: {
-    title: "Bus Tracking API - Rutas",
+    title: "Bus Tracking API - Rutas y Viajes",
     version: "1.0.0",
     description:
-      "Documentacion de los endpoints del modulo de Rutas (CRUD administrativo y consulta " +
-      "para consumidores). FR-06 / FR-15 / FR-16 / FR-23. " +
+      "Documentacion de los endpoints de los modulos de Rutas y Viajes (CRUD administrativo " +
+      "y consulta para consumidores). FR-06 / FR-15 / FR-16 / FR-23. " +
       "NOTA: la autenticacion (JWT + RBAC) esta temporalmente DESACTIVADA; los endpoints " +
       "estan abiertos hasta que exista el modulo de usuarios, momento en que se reactivara " +
-      "el middleware. GET /api/admin/routes/{id} y la reactivacion son endpoints aditivos, " +
-      "fuera del CSV oficial.",
+      "el middleware. Los GET /{id} y las reactivaciones son endpoints aditivos, " +
+      "fuera del CSV oficial. La integridad de route_id/bus_id/driver_id en Viajes la " +
+      "garantiza la FK de la base de datos (violacion => 409 TRIP_REFERENCE_INVALID).",
   },
   servers: [{ url: "/", description: "Servidor actual" }],
   tags: [
@@ -186,6 +266,18 @@ const openapiDocument = {
         `Consulta de rutas activas (roles ${ROLES.PASSENGER}, ${ROLES.DRIVER}, ${ROLES.ADMIN}). ` +
         "Auth temporalmente desactivada: endpoint abierto.",
     },
+    {
+      name: "Admin - Viajes",
+      description:
+        `CRUD de viajes (conceptualmente rol ${ROLES.ADMIN}). ` +
+        "Auth temporalmente desactivada: endpoints abiertos.",
+    },
+    {
+      name: "Consumidor - Viajes",
+      description:
+        `Consulta de viajes visibles (roles ${ROLES.PASSENGER}, ${ROLES.DRIVER}, ${ROLES.ADMIN}). ` +
+        "Excluye viajes Cancelled y Completed. Auth temporalmente desactivada: endpoint abierto.",
+    },
   ],
   components: {
     schemas: {
@@ -195,6 +287,11 @@ const openapiDocument = {
       ConsumerRoute: consumerRouteSchema,
       CreateRouteRequest: createRouteRequestSchema,
       UpdateRouteRequest: updateRouteRequestSchema,
+      TripStatus: tripStatusSchema,
+      AdminTrip: adminTripSchema,
+      ConsumerTrip: consumerTripSchema,
+      CreateTripRequest: createTripRequestSchema,
+      UpdateTripRequest: updateTripRequestSchema,
       CreatedResponse: {
         type: "object",
         required: ["id"],
@@ -380,6 +477,162 @@ const openapiDocument = {
                 schema: {
                   type: "array",
                   items: { $ref: "#/components/schemas/ConsumerRoute" },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/admin/trips": {
+      get: {
+        tags: ["Admin - Viajes"],
+        summary: "Lista completa de viajes (todos los estados)",
+        description: "Operacion administrativa.",
+        responses: {
+          200: {
+            description: "Arreglo de viajes en forma administrativa.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "array",
+                  items: { $ref: "#/components/schemas/AdminTrip" },
+                },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: ["Admin - Viajes"],
+        summary: "Crea un viaje",
+        description:
+          "Operacion administrativa. route_id, bus_id y driver_id deben existir; " +
+          "si no, la FK de la base de datos responde 409.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/CreateTripRequest" },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: "Viaje creado.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CreatedResponse" },
+              },
+            },
+          },
+          400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
+          409: errorResponse(
+            "route_id, bus_id o driver_id no corresponde a un registro existente.",
+          ),
+        },
+      },
+    },
+    "/api/admin/trips/{id}": {
+      get: {
+        tags: ["Admin - Viajes"],
+        summary: "Obtiene un viaje por id",
+        description: "Endpoint aditivo (fuera del CSV oficial). Operacion administrativa.",
+        parameters: [idPathParam],
+        responses: {
+          200: {
+            description: "Viaje en forma administrativa.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/AdminTrip" },
+              },
+            },
+          },
+          400: errorResponse("Id no es UUID."),
+          404: errorResponse("El viaje no existe."),
+        },
+      },
+      put: {
+        tags: ["Admin - Viajes"],
+        summary: "Edita un viaje",
+        description: "Operacion administrativa. Requiere al menos un campo.",
+        parameters: [idPathParam],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/UpdateTripRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "Viaje actualizado.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/UpdatedResponse" },
+              },
+            },
+          },
+          400: errorResponse("Id no es UUID o body invalido."),
+          404: errorResponse("El viaje no existe."),
+          409: errorResponse(
+            "route_id, bus_id o driver_id no corresponde a un registro existente.",
+          ),
+        },
+      },
+      delete: {
+        tags: ["Admin - Viajes"],
+        summary: "Cancela un viaje (soft-delete)",
+        description: "Operacion administrativa. Marca status=Cancelled.",
+        parameters: [idPathParam],
+        responses: {
+          200: {
+            description: "Viaje cancelado.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DeletedResponse" },
+              },
+            },
+          },
+          400: errorResponse("Id no es UUID."),
+          404: errorResponse("El viaje no existe."),
+        },
+      },
+    },
+    "/api/admin/trips/{id}/reactivate": {
+      post: {
+        tags: ["Admin - Viajes"],
+        summary: "Reactiva un viaje (deshace el soft-delete)",
+        description: "Endpoint aditivo (fuera del CSV oficial). Marca status=Scheduled.",
+        parameters: [idPathParam],
+        responses: {
+          200: {
+            description: "Viaje reactivado.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ReactivatedResponse" },
+              },
+            },
+          },
+          400: errorResponse("Id no es UUID."),
+          404: errorResponse("El viaje no existe."),
+        },
+      },
+    },
+    "/api/passenger/trips": {
+      get: {
+        tags: ["Consumidor - Viajes"],
+        summary: "Lista de viajes visibles",
+        description: "Devuelve viajes que no esten Cancelled ni Completed.",
+        responses: {
+          200: {
+            description: "Arreglo de viajes en forma de consumidor.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "array",
+                  items: { $ref: "#/components/schemas/ConsumerTrip" },
                 },
               },
             },

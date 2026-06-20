@@ -14,7 +14,8 @@ function formatIssues(error) {
   }));
 }
 
-function validate(schemas) {
+function validate(schemas, code) {
+  const errorCode = code || ERROR_CODES.ROUTE_VALIDATION_FAILED;
   return function validator(req, _res, next) {
     if (!req.valid) {
       req.valid = {};
@@ -29,7 +30,7 @@ function validate(schemas) {
         return next(
           new AppError(
             HTTP_STATUS.BAD_REQUEST,
-            ERROR_CODES.ROUTE_VALIDATION_FAILED,
+            errorCode,
             `Validacion fallida en ${part}.`,
             formatIssues(result.error),
           ),
