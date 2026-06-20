@@ -1,0 +1,34 @@
+title = "gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Paths and patterns intencionalmente excluidos del scan"
+
+paths = [
+  '''(^|/)\.env\.example$''',
+  '''(^|/)\.gitleaks\.toml$''',
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)pnpm-lock\.yaml$''',
+  '''(^|/)yarn\.lock$''',
+  '''(^|/)node_modules/''',
+  '''(^|/)tests/.*fixtures/''',
+]
+
+regexes = [
+  '''<your-.*-here>''',
+  '''your_.*_key''',
+  '''your-project-id''',
+  '''AKIAIOSFODNN7EXAMPLE''',
+  '''xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx''',
+]
+
+commits = []
+
+stopwords = [
+  "example",
+  "placeholder",
+  "dummy",
+  "fake",
+]
