@@ -1,0 +1,44 @@
+protected_branches='main qa dev'
+local_branch=$(git rev-parse --abbrev-ref HEAD)
+
+while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "$remote_ref" ] && continue
+  remote_branch=${remote_ref#refs/heads/}
+
+  case " $protected_branches " in
+    *" $remote_branch "*)
+      if [ "$remote_branch" = "main" ]; then
+        case "$local_branch" in
+          hotfix/*)
+            echo "[pre-push] hotfix detectado: $local_branch → main"
+            echo "[pre-push] RECORDATORIO: back-merge a qa y dev el mismo dia (orden: main → qa → dev)."
+            continue
+            ;;
+        esac
+      fi
+
+      if [ "$local_branch" = "$remote_branch" ]; then
+        echo "[pre-push] AVISO: push directo a rama protegida $remote_branch (fast-forward de upstream)."
+        echo "[pre-push] Para integrar cambios nuevos usa PR via GitHub, no push directo a la rama protegida."
+        continue
+      fi
+
+      echo "[pre-push] BLOQUEADO: push directo a $remote_branch desde $local_branch."
+      case "$remote_branch" in
+        main)
+          echo "[pre-push] Flujo correcto: PR $local_branch → dev → qa → main (o usa hotfix/* si es urgente)."
+          ;;
+        qa)
+          echo "[pre-push] Flujo correcto: PR $local_branch → dev primero, luego PR dev → qa."
+          ;;
+        dev)
+          echo "[pre-push] Flujo correcto: crea PR $local_branch → dev en GitHub."
+          ;;
+      esac
+      echo "[pre-push] Ver docs/git-workflow.md para detalle."
+      exit 1
+      ;;
+  esac
+done
+
+exit 0

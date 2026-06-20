@@ -1,0 +1,23 @@
+module.exports = {
+  clearMocks: true,
+  collectCoverageFrom: [
+    "app.js",
+    "server.js",
+    "index.js",
+    "config/**/*.{js,mjs,cjs}",
+    "constants/**/*.{js,mjs,cjs}",
+    "controllers/**/*.{js,mjs,cjs}",
+    "database/**/*.{js,mjs,cjs}",
+    "middleware/**/*.{js,mjs,cjs}",
+    "models/**/*.{js,mjs,cjs}",
+    "realtime/**/*.{js,mjs,cjs}",
+    "repositories/**/*.{js,mjs,cjs}",
+    "routes/**/*.{js,mjs,cjs}",
+    "services/**/*.{js,mjs,cjs}",
+    "tasks/**/*.{js,mjs,cjs}",
+    "utils/**/*.{js,mjs,cjs}",
+    "views/**/*.{js,mjs,cjs}",
+  ],
+  coverageDirectory: "coverage",
+  testEnvironment: "node",
+};

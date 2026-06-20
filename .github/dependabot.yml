@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    groups:
+      runtime:
+        patterns:
+          - "express"
+          - "@supabase/*"
+      dev-tooling:
+        patterns:
+          - "eslint*"
+          - "@eslint/*"
+          - "globals"
+          - "husky"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "ci"
