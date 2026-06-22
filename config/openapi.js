@@ -220,6 +220,130 @@ const updateTripRequestSchema = {
   example: { status: "Delayed" },
 };
 
+const registerPassengerRequestSchema = {
+  type: "object",
+  required: ["name", "email", "password"],
+  additionalProperties: false,
+  properties: {
+    name: { type: "string", minLength: 1, maxLength: 100, example: "Carlos Marin" },
+    email: {
+      type: "string",
+      format: "email",
+      maxLength: 150,
+      example: "carlos.passenger@example.com",
+    },
+    password: { type: "string", minLength: 8, maxLength: 100, example: "Password123" },
+    phone: { type: "string", minLength: 8, maxLength: 30, example: "88888888" },
+  },
+};
+
+const loginRequestSchema = {
+  type: "object",
+  required: ["email", "password"],
+  additionalProperties: false,
+  properties: {
+    email: {
+      type: "string",
+      format: "email",
+      maxLength: 150,
+      example: "carlos.passenger@example.com",
+    },
+    password: { type: "string", minLength: 8, maxLength: 100, example: "Password123" },
+  },
+};
+
+const passengerProfileSchema = {
+  type: "object",
+  required: ["user_id"],
+  properties: {
+    user_id: { type: "string", format: "uuid" },
+    phone: { type: "string", nullable: true, example: "88888888" },
+    notification_preferences: { type: "object", nullable: true, additionalProperties: true },
+    is_senior: { type: "boolean", nullable: true, example: false },
+    expo_push_token: { type: "string", nullable: true },
+  },
+};
+
+const registerPassengerResponseSchema = {
+  type: "object",
+  required: ["user_id", "role", "passenger"],
+  properties: {
+    user_id: { type: "string", format: "uuid" },
+    role: { type: "string", enum: [ROLES.PASSENGER] },
+    passenger: { $ref: "#/components/schemas/PassengerProfile" },
+  },
+};
+
+const loginResponseSchema = {
+  type: "object",
+  required: ["access_token", "refresh_token", "expires_in", "token_type", "user"],
+  properties: {
+    access_token: { type: "string" },
+    refresh_token: { type: "string" },
+    expires_in: { type: "integer", example: 3600 },
+    token_type: { type: "string", example: "bearer" },
+    user: {
+      type: "object",
+      required: ["id", "email"],
+      properties: {
+        id: { type: "string", format: "uuid" },
+        email: { type: "string", format: "email" },
+        role: { type: "string", nullable: true, example: ROLES.PASSENGER },
+        name: { type: "string", nullable: true, example: "Carlos Marin" },
+      },
+    },
+  },
+};
+
+const passengerIncidentSchema = {
+  type: "object",
+  required: ["id", "trip_id", "type", "latitude", "longitude", "timestamp"],
+  properties: {
+    id: { type: "string", format: "uuid" },
+    trip_id: { type: "string", format: "uuid" },
+    type: { type: "string", minLength: 1, maxLength: 80, example: "traffic" },
+    description: {
+      type: "string",
+      nullable: true,
+      maxLength: 500,
+      example: "Traffic jam near the main stop.",
+    },
+    latitude: { type: "number", minimum: -90, maximum: 90, example: 9.9763 },
+    longitude: { type: "number", minimum: -180, maximum: 180, example: -84.8384 },
+    timestamp: { type: "string", format: "date-time" },
+  },
+};
+
+const createPassengerIncidentRequestSchema = {
+  type: "object",
+  required: ["trip_id", "type", "latitude", "longitude"],
+  additionalProperties: false,
+  properties: {
+    trip_id: {
+      type: "string",
+      format: "uuid",
+      example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+    },
+    type: { type: "string", minLength: 1, maxLength: 80, example: "traffic" },
+    description: {
+      type: "string",
+      maxLength: 500,
+      example: "Traffic jam near the main stop.",
+    },
+    latitude: { type: "number", minimum: -90, maximum: 90, example: 9.9763 },
+    longitude: { type: "number", minimum: -180, maximum: 180, example: -84.8384 },
+  },
+};
+
+const createPassengerIncidentResponseSchema = {
+  type: "object",
+  required: ["incident_id", "incident"],
+  properties: {
+    incident_id: { type: "string", format: "uuid" },
+    incident: { $ref: "#/components/schemas/PassengerIncident" },
+  },
+};
+
 const errorResponse = (description) => ({
   description,
   content: {
@@ -254,6 +378,17 @@ const openapiDocument = {
   servers: [{ url: "/", description: "Servidor actual" }],
   tags: [
     { name: "Health", description: "Estado del servicio." },
+    {
+      name: "Authentication",
+      description:
+        "Registro e inicio de sesion de usuarios. Auth temporalmente desactivada para pruebas.",
+    },
+    {
+      name: "Pasajero - Incidentes",
+      description:
+        `Reporte y consulta de incidentes para rol ${ROLES.PASSENGER}. ` +
+        "Auth temporalmente desactivada: endpoints abiertos.",
+    },
     {
       name: "Admin - Rutas",
       description:
@@ -292,6 +427,14 @@ const openapiDocument = {
       ConsumerTrip: consumerTripSchema,
       CreateTripRequest: createTripRequestSchema,
       UpdateTripRequest: updateTripRequestSchema,
+      RegisterPassengerRequest: registerPassengerRequestSchema,
+      RegisterPassengerResponse: registerPassengerResponseSchema,
+      LoginRequest: loginRequestSchema,
+      LoginResponse: loginResponseSchema,
+      PassengerProfile: passengerProfileSchema,
+      PassengerIncident: passengerIncidentSchema,
+      CreatePassengerIncidentRequest: createPassengerIncidentRequestSchema,
+      CreatePassengerIncidentResponse: createPassengerIncidentResponseSchema,
       CreatedResponse: {
         type: "object",
         required: ["id"],
@@ -333,6 +476,118 @@ const openapiDocument = {
               },
             },
           },
+        },
+      },
+    },
+    "/api/auth/register": {
+      post: {
+        tags: ["Authentication"],
+        summary: "Registra un pasajero",
+        description: "EP-01. Crea una cuenta de pasajero en Supabase Auth y su perfil local.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/RegisterPassengerRequest" },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: "Pasajero registrado correctamente.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/RegisterPassengerResponse" },
+              },
+            },
+          },
+          400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
+          409: errorResponse("Ya existe un usuario con ese email."),
+          500: errorResponse("No se pudo crear la cuenta de autenticacion del pasajero."),
+        },
+      },
+    },
+    "/api/auth/login": {
+      post: {
+        tags: ["Authentication"],
+        summary: "Inicia sesion",
+        description: "EP-02. Autentica un usuario por email y password.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/LoginRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "Inicio de sesion exitoso.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/LoginResponse" },
+              },
+            },
+          },
+          400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
+          401: errorResponse("Email o password invalido."),
+        },
+      },
+    },
+    "/api/passenger/incidents": {
+      post: {
+        tags: ["Pasajero - Incidentes"],
+        summary: "Reporta un incidente",
+        description: "EP-18. Permite que un pasajero reporte un incidente asociado a un viaje.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/CreatePassengerIncidentRequest" },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: "Incidente reportado correctamente.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CreatePassengerIncidentResponse" },
+              },
+            },
+          },
+          400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
+          500: errorResponse("Error interno al crear el incidente."),
+        },
+      },
+      get: {
+        tags: ["Pasajero - Incidentes"],
+        summary: "Lista incidentes de un viaje",
+        description: "EP-20. Devuelve los incidentes asociados a un viaje especifico.",
+        parameters: [
+          {
+            name: "trip_id",
+            in: "query",
+            required: true,
+            description: "Identificador UUID del viaje.",
+            schema: { type: "string", format: "uuid" },
+            example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+          },
+        ],
+        responses: {
+          200: {
+            description: "Arreglo de incidentes del viaje.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "array",
+                  items: { $ref: "#/components/schemas/PassengerIncident" },
+                },
+              },
+            },
+          },
+          400: errorResponse("trip_id faltante o invalido."),
+          500: errorResponse("Error interno al consultar incidentes."),
         },
       },
     },
