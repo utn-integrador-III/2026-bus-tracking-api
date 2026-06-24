@@ -2,10 +2,12 @@
 
 const express = require("express");
 const validate = require("../middleware/validate");
+const requireAuth = require("../middleware/requireAuth");
 const controller = require("../controllers/authController");
 const {
   registerPassengerSchema,
   loginSchema,
+  oauthStartSchema,
 } = require("../models/auth.model");
 const { ERROR_CODES } = require("../constants/errorCodes");
 
@@ -22,5 +24,19 @@ router.post(
   validate({ body: loginSchema }, ERROR_CODES.AUTH_VALIDATION_FAILED),
   controller.loginUser,
 );
+
+router.post(
+  "/admin/login",
+  validate({ body: loginSchema }, ERROR_CODES.AUTH_VALIDATION_FAILED),
+  controller.loginAdmin,
+);
+
+router.post(
+  "/oauth/start",
+  validate({ body: oauthStartSchema }, ERROR_CODES.AUTH_VALIDATION_FAILED),
+  controller.startOAuth,
+);
+
+router.get("/session", requireAuth, controller.getSession);
 
 module.exports = router;

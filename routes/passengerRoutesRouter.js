@@ -1,10 +1,5 @@
 "use strict";
 
-const express = require("express");
-const controller = require("../controllers/routesController");
+const { createConsumerRoutesRouter } = require("../src/modules/routes");
 
-const router = express.Router();
-
-router.get("/", controller.listConsumerRoutes);
-
-module.exports = router;
+module.exports = createConsumerRoutesRouter();

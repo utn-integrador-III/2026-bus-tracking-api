@@ -23,6 +23,9 @@ describe("documentacion OpenAPI", () => {
     const res = await request(app).get("/api/docs.json");
     const { paths } = res.body;
     expect(Object.keys(paths["/health"])).toContain("get");
+    expect(Object.keys(paths["/api/auth/admin/login"])).toContain("post");
+    expect(Object.keys(paths["/api/auth/oauth/start"])).toContain("post");
+    expect(Object.keys(paths["/api/auth/session"])).toContain("get");
     expect(Object.keys(paths["/api/admin/routes"]).sort()).toEqual(["get", "post"]);
     expect(Object.keys(paths["/api/admin/routes/{id}"]).sort()).toEqual([
       "delete",
@@ -44,6 +47,18 @@ describe("documentacion OpenAPI", () => {
     ]);
     expect(Object.keys(paths["/api/admin/trips/{id}/reactivate"])).toContain("post");
     expect(Object.keys(paths["/api/passenger/trips"])).toContain("get");
+  });
+
+  test("el spec declara bearer auth en los endpoints protegidos", async () => {
+    const res = await request(app).get("/api/docs.json");
+    const { components, paths } = res.body;
+
+    expect(components.securitySchemes).toHaveProperty("bearerAuth");
+    expect(paths["/api/admin/routes"].get.security).toEqual([{ bearerAuth: [] }]);
+    expect(paths["/api/passenger/routes"].get.security).toEqual([{ bearerAuth: [] }]);
+    expect(paths["/api/admin/trips"].post.security).toEqual([{ bearerAuth: [] }]);
+    expect(paths["/api/passenger/incidents"].post.security).toEqual([{ bearerAuth: [] }]);
+    expect(paths["/api/auth/session"].get.security).toEqual([{ bearerAuth: [] }]);
   });
 
   test("no exige autenticacion para servir la documentacion", async () => {

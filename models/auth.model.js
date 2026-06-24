@@ -6,6 +6,7 @@ const name = z.string().trim().min(1).max(100);
 const email = z.string().trim().email().max(150);
 const password = z.string().min(8).max(100);
 const phone = z.string().trim().min(8).max(30).optional();
+const oauthProvider = z.enum(["google", "apple", "github"]);
 
 const registerPassengerSchema = z
   .object({
@@ -23,7 +24,15 @@ const loginSchema = z
   })
   .strict();
 
+const oauthStartSchema = z
+  .object({
+    provider: oauthProvider,
+    redirect_to: z.string().trim().url().optional(),
+  })
+  .strict();
+
 module.exports = {
   registerPassengerSchema,
   loginSchema,
+  oauthStartSchema,
 };

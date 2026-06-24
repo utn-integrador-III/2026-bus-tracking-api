@@ -1,20 +1,32 @@
 "use strict";
 
+jest.mock("../../database/supabaseClient", () => ({
+  verifyAccessToken: jest.fn(),
+  getServiceClient: jest.fn(),
+  getAnonClient: jest.fn(),
+}));
 jest.mock("../../services/passenger.service", () => ({
   createPassengerIncident: jest.fn(),
   listPassengerIncidents: jest.fn(),
 }));
 
 const request = require("supertest");
+const { verifyAccessToken } = require("../../database/supabaseClient");
 const buildApp = require("../../app");
 const passengerService = require("../../services/passenger.service");
 
 const app = buildApp();
 const validTripId = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+const AUTH_TOKEN = "test-token";
+const passengerUser = {
+  id: "passenger-user-id",
+  user_metadata: { role: "Passenger" },
+};
 
 describe("passenger incident routes", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    verifyAccessToken.mockResolvedValue(passengerUser);
   });
 
   describe("POST /api/passenger/incidents", () => {
@@ -31,6 +43,7 @@ describe("passenger incident routes", () => {
 
       const response = await request(app)
         .post("/api/passenger/incidents")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: validTripId,
           type: "traffic",
@@ -65,6 +78,7 @@ describe("passenger incident routes", () => {
     test("returns 400 when incident payload has invalid trip id", async () => {
       const response = await request(app)
         .post("/api/passenger/incidents")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: "invalid-id",
           type: "traffic",
@@ -80,6 +94,7 @@ describe("passenger incident routes", () => {
     test("returns 400 when latitude is out of range", async () => {
       const response = await request(app)
         .post("/api/passenger/incidents")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: validTripId,
           type: "traffic",
@@ -94,6 +109,7 @@ describe("passenger incident routes", () => {
     test("returns 400 when payload has unknown keys", async () => {
       const response = await request(app)
         .post("/api/passenger/incidents")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: validTripId,
           type: "traffic",
@@ -103,6 +119,19 @@ describe("passenger incident routes", () => {
         });
 
       expect(response.status).toBe(400);
+      expect(passengerService.createPassengerIncident).not.toHaveBeenCalled();
+    });
+
+    test("returns 401 when Authorization is missing", async () => {
+      const response = await request(app).post("/api/passenger/incidents").send({
+        trip_id: validTripId,
+        type: "traffic",
+        latitude: 9.9763,
+        longitude: -84.8384,
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe("AUTH_TOKEN_MISSING");
       expect(passengerService.createPassengerIncident).not.toHaveBeenCalled();
     });
   });
@@ -123,6 +152,7 @@ describe("passenger incident routes", () => {
 
       const response = await request(app)
         .get("/api/passenger/incidents")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .query({
           trip_id: validTripId,
         });
@@ -146,7 +176,9 @@ describe("passenger incident routes", () => {
     });
 
     test("returns 400 when trip id is missing", async () => {
-      const response = await request(app).get("/api/passenger/incidents");
+      const response = await request(app)
+        .get("/api/passenger/incidents")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`);
 
       expect(response.status).toBe(400);
       expect(passengerService.listPassengerIncidents).not.toHaveBeenCalled();
@@ -155,11 +187,22 @@ describe("passenger incident routes", () => {
     test("returns 400 when trip id is invalid", async () => {
       const response = await request(app)
         .get("/api/passenger/incidents")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .query({
           trip_id: "invalid-id",
         });
 
       expect(response.status).toBe(400);
+      expect(passengerService.listPassengerIncidents).not.toHaveBeenCalled();
+    });
+
+    test("returns 401 when Authorization is missing", async () => {
+      const response = await request(app)
+        .get("/api/passenger/incidents")
+        .query({ trip_id: validTripId });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe("AUTH_TOKEN_MISSING");
       expect(passengerService.listPassengerIncidents).not.toHaveBeenCalled();
     });
   });

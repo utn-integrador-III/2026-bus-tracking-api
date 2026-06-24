@@ -6,6 +6,7 @@ jest.mock("../../database/supabaseClient", () => ({
 }));
 
 jest.mock("../../repositories/userRepository", () => ({
+  findUserById: jest.fn(),
   findUserByEmail: jest.fn(),
   createUserProfile: jest.fn(),
 }));
@@ -14,11 +15,17 @@ jest.mock("../../repositories/passengerRepository", () => ({
   createPassengerProfile: jest.fn(),
 }));
 
+jest.mock("../../repositories/authAuditRepository", () => ({
+  createLoginAuditLog: jest.fn(),
+}));
+
 const { getServiceClient, getAnonClient } = require("../../database/supabaseClient");
 const userRepository = require("../../repositories/userRepository");
 const passengerRepository = require("../../repositories/passengerRepository");
+const authAuditRepository = require("../../repositories/authAuditRepository");
 const authService = require("../auth.service");
 const { ERROR_CODES } = require("../../constants/errorCodes");
+const { ROLES } = require("../../constants/roles");
 
 const validUserId = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
 
@@ -241,6 +248,12 @@ describe("auth.service", () => {
           signInWithPassword: signInWithPasswordMock,
         },
       });
+      userRepository.findUserById.mockResolvedValue({
+        id: validUserId,
+        email: "carlos@example.com",
+        role: "Passenger",
+        name: "Carlos Marin",
+      });
 
       const result = await authService.loginUser({
         email: "carlos@example.com",
@@ -257,6 +270,7 @@ describe("auth.service", () => {
         refresh_token: "refresh-token",
         expires_in: 3600,
         token_type: "bearer",
+        capabilities: ["passenger:routes", "passenger:trips", "passenger:incidents"],
         user: {
           id: validUserId,
           email: "carlos@example.com",
@@ -287,6 +301,7 @@ describe("auth.service", () => {
           }),
         },
       });
+      userRepository.findUserById.mockResolvedValue(null);
 
       const result = await authService.loginUser({
         email: "carlos@example.com",
@@ -295,6 +310,56 @@ describe("auth.service", () => {
 
       expect(result.user.role).toBeNull();
       expect(result.user.name).toBeNull();
+    });
+
+    test("uses the database role and writes a successful audit log", async () => {
+      getAnonClient.mockReturnValue({
+        auth: {
+          signInWithPassword: jest.fn().mockResolvedValue({
+            data: {
+              session: {
+                access_token: "access-token",
+                refresh_token: "refresh-token",
+                expires_in: 3600,
+                token_type: "bearer",
+              },
+              user: {
+                id: validUserId,
+                email: "admin@example.com",
+                user_metadata: {
+                  name: "Metadata Name",
+                  role: "Passenger",
+                },
+              },
+            },
+            error: null,
+          }),
+        },
+      });
+      userRepository.findUserById.mockResolvedValue({
+        id: validUserId,
+        email: "admin@example.com",
+        role: ROLES.ADMIN,
+        name: "Manager Admin",
+      });
+
+      const result = await authService.loginUser(
+        { email: "admin@example.com", password: "Password123" },
+        { ipAddress: "127.0.0.1", userAgent: "jest" },
+      );
+
+      expect(result.user.role).toBe(ROLES.ADMIN);
+      expect(result.user.name).toBe("Manager Admin");
+      expect(result.capabilities).toContain("auth:admin");
+      expect(authAuditRepository.createLoginAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user_id: validUserId,
+          email: "admin@example.com",
+          role: ROLES.ADMIN,
+          auth_strategy: "password",
+          was_successful: true,
+        }),
+      );
     });
 
     test("rejects invalid login credentials", async () => {
@@ -317,6 +382,15 @@ describe("auth.service", () => {
       ).rejects.toMatchObject({
         code: ERROR_CODES.AUTH_LOGIN_FAILED,
       });
+
+      expect(authAuditRepository.createLoginAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: "carlos@example.com",
+          auth_strategy: "password",
+          was_successful: false,
+          failure_code: ERROR_CODES.AUTH_LOGIN_FAILED,
+        }),
+      );
     });
 
     test("rejects login when session is missing", async () => {
@@ -342,6 +416,80 @@ describe("auth.service", () => {
         }),
       ).rejects.toMatchObject({
         code: ERROR_CODES.AUTH_LOGIN_FAILED,
+      });
+    });
+
+    test("rejects admin login for non-admin users", async () => {
+      getAnonClient.mockReturnValue({
+        auth: {
+          signInWithPassword: jest.fn().mockResolvedValue({
+            data: {
+              session: {
+                access_token: "access-token",
+                refresh_token: "refresh-token",
+                expires_in: 3600,
+                token_type: "bearer",
+              },
+              user: {
+                id: validUserId,
+                email: "carlos@example.com",
+                user_metadata: {
+                  name: "Carlos Marin",
+                  role: ROLES.PASSENGER,
+                },
+              },
+            },
+            error: null,
+          }),
+        },
+      });
+      userRepository.findUserById.mockResolvedValue({
+        id: validUserId,
+        email: "carlos@example.com",
+        role: ROLES.PASSENGER,
+        name: "Carlos Marin",
+      });
+
+      await expect(
+        authService.loginAdmin({ email: "carlos@example.com", password: "Password123" }),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.AUTH_ADMIN_REQUIRED,
+      });
+    });
+
+    test("starts an OAuth flow", async () => {
+      getAnonClient.mockReturnValue({
+        auth: {
+          signInWithOAuth: jest.fn().mockResolvedValue({
+            data: { url: "https://auth.example.com/google" },
+            error: null,
+          }),
+        },
+      });
+
+      await expect(
+        authService.startOAuth({ provider: "google", redirect_to: "https://app.example.com/callback" }),
+      ).resolves.toEqual({
+        provider: "google",
+        authorization_url: "https://auth.example.com/google",
+      });
+    });
+
+    test("builds the mobile session payload", async () => {
+      userRepository.findUserById.mockResolvedValue({
+        id: validUserId,
+        email: "admin@example.com",
+        role: ROLES.ADMIN,
+        name: "Manager Admin",
+      });
+
+      await expect(
+        authService.getSession({ userId: validUserId, role: ROLES.PASSENGER }),
+      ).resolves.toEqual({
+        user_id: validUserId,
+        email: "admin@example.com",
+        role: ROLES.ADMIN,
+        capabilities: ["admin:routes", "admin:trips", "auth:admin"],
       });
     });
   });
