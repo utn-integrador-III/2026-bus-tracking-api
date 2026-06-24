@@ -23,12 +23,11 @@ function extractBearerToken(req) {
 
 async function resolveRoleFromUser(user) {
   if (user && user.id && typeof userRepository.findUserById === "function") {
-    try {
-      const dbUser = await userRepository.findUserById(user.id);
-      if (dbUser && isValidRole(dbUser.role)) {
-        return dbUser.role;
-      }
-    } catch (_error) {
+    const dbUser = await userRepository.findUserById(user.id).catch(function ignoreLookupError() {
+      return null;
+    });
+    if (dbUser && isValidRole(dbUser.role)) {
+      return dbUser.role;
     }
   }
   const appMetadata = user.app_metadata || {};
