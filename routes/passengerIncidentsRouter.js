@@ -1,6 +1,7 @@
 "use strict";
 
 const express = require("express");
+const requireAuth = require("../middleware/requireAuth");
 const validate = require("../middleware/validate");
 const controller = require("../controllers/passengerController");
 const {
@@ -10,6 +11,8 @@ const {
 const { ERROR_CODES } = require("../constants/errorCodes");
 
 const router = express.Router();
+
+router.use(requireAuth);
 
 router.post(
   "/",

@@ -1,10 +1,5 @@
 "use strict";
 
-const express = require("express");
-const controller = require("../controllers/tripsController");
+const { createConsumerTripsRouter } = require("../src/modules/trips");
 
-const router = express.Router();
-
-router.get("/", controller.listConsumerTrips);
-
-module.exports = router;
+module.exports = createConsumerTripsRouter();

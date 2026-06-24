@@ -1,6 +1,7 @@
 "use strict";
 
 const { verifyAccessToken } = require("../database/supabaseClient");
+const userRepository = require("../repositories/userRepository");
 const { isValidRole, ROLES } = require("../constants/roles");
 const AppError = require("../utils/AppError");
 const { HTTP_STATUS } = require("../constants/httpStatus");
@@ -20,7 +21,16 @@ function extractBearerToken(req) {
   return token.length > 0 ? token : null;
 }
 
-function resolveRoleFromUser(user) {
+async function resolveRoleFromUser(user) {
+  if (user && user.id && typeof userRepository.findUserById === "function") {
+    try {
+      const dbUser = await userRepository.findUserById(user.id);
+      if (dbUser && isValidRole(dbUser.role)) {
+        return dbUser.role;
+      }
+    } catch (_error) {
+    }
+  }
   const appMetadata = user.app_metadata || {};
   const userMetadata = user.user_metadata || {};
   const role = appMetadata.role || userMetadata.role;
@@ -38,7 +48,7 @@ const requireAuth = asyncHandler(async function requireAuth(req, _res, next) {
   }
 
   const user = await verifyAccessToken(token);
-  req.auth = { userId: user.id, role: resolveRoleFromUser(user) };
+  req.auth = { userId: user.id, role: await resolveRoleFromUser(user) };
   return next();
 });
 

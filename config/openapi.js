@@ -252,6 +252,16 @@ const loginRequestSchema = {
   },
 };
 
+const oauthStartRequestSchema = {
+  type: "object",
+  required: ["provider"],
+  additionalProperties: false,
+  properties: {
+    provider: { type: "string", enum: ["google", "apple", "github"] },
+    redirect_to: { type: "string", format: "uri" },
+  },
+};
+
 const passengerProfileSchema = {
   type: "object",
   required: ["user_id"],
@@ -291,6 +301,33 @@ const loginResponseSchema = {
         role: { type: "string", nullable: true, example: ROLES.PASSENGER },
         name: { type: "string", nullable: true, example: "Carlos Marin" },
       },
+    },
+    capabilities: {
+      type: "array",
+      items: { type: "string" },
+    },
+  },
+};
+
+const oauthStartResponseSchema = {
+  type: "object",
+  required: ["provider", "authorization_url"],
+  properties: {
+    provider: { type: "string", enum: ["google", "apple", "github"] },
+    authorization_url: { type: "string", format: "uri" },
+  },
+};
+
+const sessionResponseSchema = {
+  type: "object",
+  required: ["user_id", "role", "capabilities"],
+  properties: {
+    user_id: { type: "string", format: "uuid" },
+    email: { type: "string", format: "email", nullable: true },
+    role: { type: "string", enum: Object.values(ROLES) },
+    capabilities: {
+      type: "array",
+      items: { type: "string" },
     },
   },
 };
@@ -361,6 +398,16 @@ const idPathParam = {
   schema: { type: "string", format: "uuid" },
 };
 
+const bearerSecurity = [{ bearerAuth: [] }];
+
+const unauthorizedResponse = errorResponse(
+  "Falta Authorization Bearer o el token es invalido o expirado.",
+);
+
+const forbiddenResponse = errorResponse(
+  "El rol autenticado no tiene permisos para esta operacion.",
+);
+
 const openapiDocument = {
   openapi: "3.0.3",
   info: {
@@ -369,9 +416,8 @@ const openapiDocument = {
     description:
       "Documentacion de los endpoints de los modulos de Rutas y Viajes (CRUD administrativo " +
       "y consulta para consumidores). FR-06 / FR-15 / FR-16 / FR-23. " +
-      "NOTA: la autenticacion (JWT + RBAC) esta temporalmente DESACTIVADA; los endpoints " +
-      "estan abiertos hasta que exista el modulo de usuarios, momento en que se reactivara " +
-      "el middleware. Los GET /{id} y las reactivaciones son endpoints aditivos, " +
+      "Los endpoints protegidos requieren Authorization: Bearer <jwt> validado contra Supabase Auth. " +
+      "Los GET /{id} y las reactivaciones son endpoints aditivos, " +
       "fuera del CSV oficial. La integridad de route_id/bus_id/driver_id en Viajes la " +
       "garantiza la FK de la base de datos (violacion => 409 TRIP_REFERENCE_INVALID).",
   },
@@ -380,41 +426,40 @@ const openapiDocument = {
     { name: "Health", description: "Estado del servicio." },
     {
       name: "Authentication",
-      description:
-        "Registro e inicio de sesion de usuarios. Auth temporalmente desactivada para pruebas.",
+      description: "Registro e inicio de sesion de usuarios.",
     },
     {
       name: "Pasajero - Incidentes",
-      description:
-        `Reporte y consulta de incidentes para rol ${ROLES.PASSENGER}. ` +
-        "Auth temporalmente desactivada: endpoints abiertos.",
+      description: `Reporte y consulta de incidentes para rol ${ROLES.PASSENGER}.`,
     },
     {
       name: "Admin - Rutas",
-      description:
-        `CRUD de rutas (conceptualmente rol ${ROLES.ADMIN}). ` +
-        "Auth temporalmente desactivada: endpoints abiertos.",
+      description: `CRUD de rutas (conceptualmente rol ${ROLES.ADMIN}).`,
     },
     {
       name: "Consumidor - Rutas",
-      description:
-        `Consulta de rutas activas (roles ${ROLES.PASSENGER}, ${ROLES.DRIVER}, ${ROLES.ADMIN}). ` +
-        "Auth temporalmente desactivada: endpoint abierto.",
+      description: `Consulta de rutas activas (roles ${ROLES.PASSENGER}, ${ROLES.DRIVER}, ${ROLES.ADMIN}).`,
     },
     {
       name: "Admin - Viajes",
-      description:
-        `CRUD de viajes (conceptualmente rol ${ROLES.ADMIN}). ` +
-        "Auth temporalmente desactivada: endpoints abiertos.",
+      description: `CRUD de viajes (conceptualmente rol ${ROLES.ADMIN}).`,
     },
     {
       name: "Consumidor - Viajes",
       description:
         `Consulta de viajes visibles (roles ${ROLES.PASSENGER}, ${ROLES.DRIVER}, ${ROLES.ADMIN}). ` +
-        "Excluye viajes Cancelled y Completed. Auth temporalmente desactivada: endpoint abierto.",
+        "Excluye viajes Cancelled y Completed.",
     },
   ],
   components: {
+    securitySchemes: {
+      bearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
+        description: "Token JWT emitido por Supabase Auth.",
+      },
+    },
     schemas: {
       ErrorEnvelope: errorEnvelopeSchema,
       RouteGeometry: routeGeometrySchema,
@@ -431,6 +476,9 @@ const openapiDocument = {
       RegisterPassengerResponse: registerPassengerResponseSchema,
       LoginRequest: loginRequestSchema,
       LoginResponse: loginResponseSchema,
+      OAuthStartRequest: oauthStartRequestSchema,
+      OAuthStartResponse: oauthStartResponseSchema,
+      SessionResponse: sessionResponseSchema,
       PassengerProfile: passengerProfileSchema,
       PassengerIncident: passengerIncidentSchema,
       CreatePassengerIncidentRequest: createPassengerIncidentRequestSchema,
@@ -510,8 +558,8 @@ const openapiDocument = {
     "/api/auth/login": {
       post: {
         tags: ["Authentication"],
-        summary: "Inicia sesion",
-        description: "EP-02. Autentica un usuario por email y password.",
+        summary: "Inicia sesion con credenciales",
+        description: "EP-02. Autentica un usuario por email y password y devuelve su rol efectivo.",
         requestBody: {
           required: true,
           content: {
@@ -534,11 +582,86 @@ const openapiDocument = {
         },
       },
     },
+    "/api/auth/admin/login": {
+      post: {
+        tags: ["Authentication"],
+        summary: "Inicia sesion administrativa",
+        description: "Autentica un usuario y restringe el acceso a cuentas pre-verificadas con rol Admin.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/LoginRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "Inicio de sesion administrativo exitoso.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/LoginResponse" },
+              },
+            },
+          },
+          400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
+          401: errorResponse("Email o password invalido."),
+          403: errorResponse("La cuenta autenticada no pertenece a un administrador pre-verificado."),
+        },
+      },
+    },
+    "/api/auth/oauth/start": {
+      post: {
+        tags: ["Authentication"],
+        summary: "Inicia el flujo OAuth",
+        description: "Genera la URL de autorizacion para proveedores OAuth compatibles con el cliente movil.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/OAuthStartRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "URL de autorizacion generada correctamente.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/OAuthStartResponse" },
+              },
+            },
+          },
+          400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
+          500: errorResponse("No se pudo iniciar el flujo OAuth."),
+        },
+      },
+    },
+    "/api/auth/session": {
+      get: {
+        tags: ["Authentication"],
+        summary: "Consulta la sesion actual",
+        description: "Devuelve el rol efectivo y las capacidades del usuario autenticado para que el cliente movil restrinja navegacion y funciones.",
+        security: bearerSecurity,
+        responses: {
+          200: {
+            description: "Sesion autenticada y resuelta contra el rol persistido.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SessionResponse" },
+              },
+            },
+          },
+          401: unauthorizedResponse,
+        },
+      },
+    },
     "/api/passenger/incidents": {
       post: {
         tags: ["Pasajero - Incidentes"],
         summary: "Reporta un incidente",
         description: "EP-18. Permite que un pasajero reporte un incidente asociado a un viaje.",
+        security: bearerSecurity,
         requestBody: {
           required: true,
           content: {
@@ -556,6 +679,7 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
           400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
           500: errorResponse("Error interno al crear el incidente."),
         },
@@ -564,6 +688,7 @@ const openapiDocument = {
         tags: ["Pasajero - Incidentes"],
         summary: "Lista incidentes de un viaje",
         description: "EP-20. Devuelve los incidentes asociados a un viaje especifico.",
+        security: bearerSecurity,
         parameters: [
           {
             name: "trip_id",
@@ -586,6 +711,7 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
           400: errorResponse("trip_id faltante o invalido."),
           500: errorResponse("Error interno al consultar incidentes."),
         },
@@ -596,6 +722,7 @@ const openapiDocument = {
         tags: ["Admin - Rutas"],
         summary: "Lista completa de rutas (incluye inactivas)",
         description: "EP-04. Solo Administrador.",
+        security: bearerSecurity,
         responses: {
           200: {
             description: "Arreglo de rutas en forma administrativa.",
@@ -608,12 +735,15 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
         },
       },
       post: {
         tags: ["Admin - Rutas"],
         summary: "Crea una ruta",
         description: "EP-05. Operacion administrativa.",
+        security: bearerSecurity,
         requestBody: {
           required: true,
           content: {
@@ -631,6 +761,8 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
           400: errorResponse("Body invalido (validacion zod / GeoJSON / clave desconocida)."),
         },
       },
@@ -640,6 +772,7 @@ const openapiDocument = {
         tags: ["Admin - Rutas"],
         summary: "Obtiene una ruta por id (incluye inactivas)",
         description: "Endpoint aditivo (fuera del CSV oficial). Operacion administrativa.",
+        security: bearerSecurity,
         parameters: [idPathParam],
         responses: {
           200: {
@@ -650,6 +783,8 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
           400: errorResponse("Id no es UUID."),
           404: errorResponse("La ruta no existe."),
         },
@@ -658,6 +793,7 @@ const openapiDocument = {
         tags: ["Admin - Rutas"],
         summary: "Edita una ruta",
         description: "EP-06. Operacion administrativa. Requiere al menos un campo.",
+        security: bearerSecurity,
         parameters: [idPathParam],
         requestBody: {
           required: true,
@@ -676,6 +812,8 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
           400: errorResponse("Id no es UUID o body invalido."),
           404: errorResponse("La ruta no existe."),
         },
@@ -684,6 +822,7 @@ const openapiDocument = {
         tags: ["Admin - Rutas"],
         summary: "Desactiva una ruta (soft-delete)",
         description: "EP-07. Operacion administrativa. Marca is_active=false.",
+        security: bearerSecurity,
         parameters: [idPathParam],
         responses: {
           200: {
@@ -694,6 +833,8 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
           400: errorResponse("Id no es UUID."),
           404: errorResponse("La ruta no existe."),
         },
@@ -704,6 +845,7 @@ const openapiDocument = {
         tags: ["Admin - Rutas"],
         summary: "Reactiva una ruta (deshace el soft-delete)",
         description: "Endpoint aditivo (fuera del CSV oficial). Marca is_active=true.",
+        security: bearerSecurity,
         parameters: [idPathParam],
         responses: {
           200: {
@@ -714,6 +856,8 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
           400: errorResponse("Id no es UUID."),
           404: errorResponse("La ruta no existe."),
         },
@@ -724,6 +868,7 @@ const openapiDocument = {
         tags: ["Consumidor - Rutas"],
         summary: "Lista de rutas activas",
         description: "EP-14. Devuelve solo rutas activas.",
+        security: bearerSecurity,
         responses: {
           200: {
             description: "Arreglo de rutas en forma de consumidor.",
@@ -736,6 +881,7 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
         },
       },
     },
@@ -744,6 +890,7 @@ const openapiDocument = {
         tags: ["Admin - Viajes"],
         summary: "Lista completa de viajes (todos los estados)",
         description: "Operacion administrativa.",
+        security: bearerSecurity,
         responses: {
           200: {
             description: "Arreglo de viajes en forma administrativa.",
@@ -756,6 +903,8 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
         },
       },
       post: {
@@ -764,6 +913,7 @@ const openapiDocument = {
         description:
           "Operacion administrativa. route_id, bus_id y driver_id deben existir; " +
           "si no, la FK de la base de datos responde 409.",
+        security: bearerSecurity,
         requestBody: {
           required: true,
           content: {
@@ -781,6 +931,8 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
           400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
           409: errorResponse(
             "route_id, bus_id o driver_id no corresponde a un registro existente.",
@@ -793,6 +945,7 @@ const openapiDocument = {
         tags: ["Admin - Viajes"],
         summary: "Obtiene un viaje por id",
         description: "Endpoint aditivo (fuera del CSV oficial). Operacion administrativa.",
+        security: bearerSecurity,
         parameters: [idPathParam],
         responses: {
           200: {
@@ -803,6 +956,8 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
           400: errorResponse("Id no es UUID."),
           404: errorResponse("El viaje no existe."),
         },
@@ -811,6 +966,7 @@ const openapiDocument = {
         tags: ["Admin - Viajes"],
         summary: "Edita un viaje",
         description: "Operacion administrativa. Requiere al menos un campo.",
+        security: bearerSecurity,
         parameters: [idPathParam],
         requestBody: {
           required: true,
@@ -829,6 +985,8 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
           400: errorResponse("Id no es UUID o body invalido."),
           404: errorResponse("El viaje no existe."),
           409: errorResponse(
@@ -840,6 +998,7 @@ const openapiDocument = {
         tags: ["Admin - Viajes"],
         summary: "Cancela un viaje (soft-delete)",
         description: "Operacion administrativa. Marca status=Cancelled.",
+        security: bearerSecurity,
         parameters: [idPathParam],
         responses: {
           200: {
@@ -850,6 +1009,8 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
           400: errorResponse("Id no es UUID."),
           404: errorResponse("El viaje no existe."),
         },
@@ -860,6 +1021,7 @@ const openapiDocument = {
         tags: ["Admin - Viajes"],
         summary: "Reactiva un viaje (deshace el soft-delete)",
         description: "Endpoint aditivo (fuera del CSV oficial). Marca status=Scheduled.",
+        security: bearerSecurity,
         parameters: [idPathParam],
         responses: {
           200: {
@@ -870,6 +1032,8 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
           400: errorResponse("Id no es UUID."),
           404: errorResponse("El viaje no existe."),
         },
@@ -880,6 +1044,7 @@ const openapiDocument = {
         tags: ["Consumidor - Viajes"],
         summary: "Lista de viajes visibles",
         description: "Devuelve viajes que no esten Cancelled ni Completed.",
+        security: bearerSecurity,
         responses: {
           200: {
             description: "Arreglo de viajes en forma de consumidor.",
@@ -892,6 +1057,7 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
         },
       },
     },
