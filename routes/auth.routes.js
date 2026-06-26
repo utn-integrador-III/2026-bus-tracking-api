@@ -32,6 +32,12 @@ router.post(
 );
 
 router.post(
+  "/driver/login",
+  validate({ body: loginSchema }, ERROR_CODES.AUTH_VALIDATION_FAILED),
+  controller.loginDriver,
+);
+
+router.post(
   "/oauth/start",
   validate({ body: oauthStartSchema }, ERROR_CODES.AUTH_VALIDATION_FAILED),
   controller.startOAuth,
