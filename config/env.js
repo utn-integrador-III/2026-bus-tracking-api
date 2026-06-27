@@ -88,6 +88,9 @@ const env = Object.freeze({
     "GOOGLE_ROUTES_API_URL",
     "https://routes.googleapis.com/directions/v2:computeRoutes",
   ),
+
+  telemetryUpdateIntervalSeconds: readInt("TELEMETRY_UPDATE_INTERVAL_SECONDS", 2),
+  enableSupabaseRealtime: readString("ENABLE_SUPABASE_REALTIME", "true") === "true",
 });
 
 function assertSupabaseConfig() {

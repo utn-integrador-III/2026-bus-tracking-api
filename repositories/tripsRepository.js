@@ -10,4 +10,5 @@ module.exports = {
   createTrip: repository.createTrip.bind(repository),
   updateTrip: repository.updateTrip.bind(repository),
   setTripStatus: repository.setTripStatus.bind(repository),
+  findTripsByDriverId: repository.findTripsByDriverId.bind(repository),
 };

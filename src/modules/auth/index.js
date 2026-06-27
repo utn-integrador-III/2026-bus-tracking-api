@@ -94,8 +94,13 @@ class AuthService {
     if (dbUser && dbUser.role) {
       return dbUser.role;
     }
-    const metadata = authUser && authUser.user_metadata ? authUser.user_metadata : {};
-    return metadata.role || null;
+    if (!authUser) {
+      return null;
+    }
+    const appMetadata = authUser.app_metadata || {};
+    const userMetadata = authUser.user_metadata || {};
+    const role = appMetadata.role || userMetadata.role || null;
+    return role;
   }
 
   buildLoginResponse(session, authUser, dbUser) {
