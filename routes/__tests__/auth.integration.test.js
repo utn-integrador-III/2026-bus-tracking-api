@@ -6,6 +6,7 @@ jest.mock("../../services/auth.service", () => ({
   loginAdmin: jest.fn(),
   startOAuth: jest.fn(),
   getSession: jest.fn(),
+  loginDriver: jest.fn(),
 }));
 
 jest.mock("../../database/supabaseClient", () => ({
@@ -73,6 +74,7 @@ describe("auth routes", () => {
         email: "carlos@example.com",
         password: "Password123",
         phone: "88888888",
+        is_senior_request: false,
       });
     });
 
@@ -142,10 +144,13 @@ describe("auth routes", () => {
         },
       });
 
-      expect(authService.loginUser).toHaveBeenCalledWith({
-        email: "carlos@example.com",
-        password: "Password123",
-      }, expect.objectContaining({ ipAddress: expect.any(String) }));
+      expect(authService.loginUser).toHaveBeenCalledWith(
+        {
+          email: "carlos@example.com",
+          password: "Password123",
+        },
+        expect.objectContaining({ ipAddress: expect.any(String) }),
+      );
     });
 
     test("returns 400 when login payload is invalid", async () => {
@@ -201,6 +206,50 @@ describe("auth routes", () => {
     });
   });
 
+  describe("POST /api/auth/driver/login", () => {
+    test("returns 200 when driver login succeeds", async () => {
+      authService.loginDriver.mockResolvedValue({
+        access_token: "driver-access-token",
+        refresh_token: "driver-refresh-token",
+        expires_in: 3600,
+        token_type: "bearer",
+        user: {
+          id: validUserId,
+          email: "driver@example.com",
+          role: "Driver",
+          name: "Carlos Driver",
+        },
+      });
+
+      const response = await request(app)
+        .post("/api/auth/driver/login")
+        .send({
+          email: "driver@example.com",
+          password: "Password123",
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.user.role).toBe("Driver");
+
+      expect(authService.loginDriver).toHaveBeenCalledWith({
+        email: "driver@example.com",
+        password: "Password123",
+      });
+    });
+
+    test("returns 400 when driver login payload is invalid", async () => {
+      const response = await request(app)
+        .post("/api/auth/driver/login")
+        .send({
+          email: "invalid-email",
+          password: "Password123",
+        });
+
+      expect(response.status).toBe(400);
+      expect(authService.loginDriver).not.toHaveBeenCalled();
+    });
+  });
+
   describe("POST /api/auth/oauth/start", () => {
     test("returns the OAuth authorization url", async () => {
       authService.startOAuth.mockResolvedValue({
@@ -210,13 +259,17 @@ describe("auth routes", () => {
 
       const response = await request(app)
         .post("/api/auth/oauth/start")
-        .send({ provider: "google", redirect_to: "https://app.example.com/callback" });
+        .send({
+          provider: "google",
+          redirect_to: "https://app.example.com/callback",
+        });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         provider: "google",
         authorization_url: "https://auth.example.com/google",
       });
+
       expect(authService.startOAuth).toHaveBeenCalledWith({
         provider: "google",
         redirect_to: "https://app.example.com/callback",
@@ -231,10 +284,12 @@ describe("auth routes", () => {
         email: "admin@example.com",
         role: ROLES.ADMIN,
       });
+
       verifyAccessToken.mockResolvedValue({
         id: validUserId,
         app_metadata: { role: ROLES.ADMIN },
       });
+
       authService.getSession.mockResolvedValue({
         user_id: validUserId,
         email: "admin@example.com",
@@ -253,7 +308,11 @@ describe("auth routes", () => {
         role: ROLES.ADMIN,
         capabilities: ["auth:admin"],
       });
-      expect(authService.getSession).toHaveBeenCalledWith({ userId: validUserId, role: ROLES.ADMIN });
+
+      expect(authService.getSession).toHaveBeenCalledWith({
+        userId: validUserId,
+        role: ROLES.ADMIN,
+      });
     });
   });
 });
