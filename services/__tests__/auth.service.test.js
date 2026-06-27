@@ -49,6 +49,70 @@ describe("auth.service", () => {
     jest.resetAllMocks();
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  describe("createSeniorDocumentUploadUrl", () => {
+    test("creates a signed upload URL in the senior documents bucket", async () => {
+      jest.spyOn(Date, "now").mockReturnValue(1782511200000);
+
+      const createSignedUploadUrl = jest.fn().mockResolvedValue({
+        data: {
+          signedUrl: "https://storage.example.com/upload",
+          path: "passengers/senior.passenger-example.com/1782511200000-cedula-frontal.jpg",
+          token: "upload-token",
+        },
+        error: null,
+      });
+      const from = jest.fn().mockReturnValue({ createSignedUploadUrl });
+
+      getServiceClient.mockReturnValue({
+        storage: { from },
+      });
+
+      const result = await authService.createSeniorDocumentUploadUrl({
+        email: "Senior.Passenger@example.com",
+        file_name: "Cedula Frontal.JPG",
+        content_type: "image/jpeg",
+      });
+
+      expect(from).toHaveBeenCalledWith("cedulas");
+      expect(createSignedUploadUrl).toHaveBeenCalledWith(
+        "passengers/senior.passenger-example.com/1782511200000-cedula-frontal.jpg",
+      );
+      expect(result).toEqual({
+        bucket: "cedulas",
+        path: "passengers/senior.passenger-example.com/1782511200000-cedula-frontal.jpg",
+        signed_url: "https://storage.example.com/upload",
+        token: "upload-token",
+      });
+    });
+
+    test("throws when Supabase Storage cannot create the signed URL", async () => {
+      const createSignedUploadUrl = jest.fn().mockResolvedValue({
+        data: null,
+        error: { message: "bucket not found" },
+      });
+
+      getServiceClient.mockReturnValue({
+        storage: {
+          from: jest.fn().mockReturnValue({ createSignedUploadUrl }),
+        },
+      });
+
+      await expect(
+        authService.createSeniorDocumentUploadUrl({
+          email: "senior.passenger@example.com",
+          file_name: "cedula.jpg",
+          content_type: "image/jpeg",
+        }),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.AUTH_SENIOR_DOCUMENT_UPLOAD_FAILED,
+        statusCode: 500,
+      });
+    });
+  });
   describe("registerPassenger", () => {
     test("registers a passenger successfully", async () => {
       const createUserMock = jest.fn().mockResolvedValue({
@@ -847,3 +911,4 @@ describe("auth.service", () => {
     });
   });
 });
+

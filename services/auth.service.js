@@ -1,6 +1,7 @@
 "use strict";
 
 const { createAuthModule } = require("../src/modules/auth");
+const { getServiceClient } = require("../database/supabaseClient");
 const userRepository = require("../repositories/userRepository");
 const userRoleRepository = require("../repositories/userRoleRepository");
 const passengerRepository = require("../repositories/passengerRepository");
@@ -11,10 +12,58 @@ const { ERROR_CODES } = require("../constants/errorCodes");
 
 const DRIVER_ROLE = "Driver";
 const SENIOR_DOCUMENTS_BUCKET = "cedulas";
+const SENIOR_DOCUMENT_CONTENT_TYPES = Object.freeze({
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+});
+
+function normalizeStorageSegment(value, fallback) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized || fallback;
+}
+
+function buildSeniorDocumentPath(payload) {
+  const owner = normalizeStorageSegment(payload.email, "passenger");
+  const rawFileName = normalizeStorageSegment(payload.file_name, "document");
+  const baseName = rawFileName.replace(/\.[a-z0-9]+$/i, "") || "document";
+  const extension = SENIOR_DOCUMENT_CONTENT_TYPES[payload.content_type];
+
+  return `passengers/${owner}/${Date.now()}-${baseName}.${extension}`;
+}
 
 const { authService } = createAuthModule();
 
 const baseRegisterPassenger = authService.registerPassenger.bind(authService);
+
+authService.createSeniorDocumentUploadUrl = async function createSeniorDocumentUploadUrl(payload) {
+  const path = buildSeniorDocumentPath(payload);
+  const { data, error } = await getServiceClient()
+    .storage
+    .from(SENIOR_DOCUMENTS_BUCKET)
+    .createSignedUploadUrl(path);
+
+  if (error || !data || !data.signedUrl || !data.path) {
+    throw new AppError(
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      ERROR_CODES.AUTH_SENIOR_DOCUMENT_UPLOAD_FAILED,
+      "Senior document upload URL could not be created.",
+      error ? error.message : undefined,
+    );
+  }
+
+  return {
+    bucket: SENIOR_DOCUMENTS_BUCKET,
+    path: data.path,
+    signed_url: data.signedUrl,
+    token: data.token || null,
+  };
+};
 
 authService.registerPassenger = async function registerPassenger(payload) {
   const result = await baseRegisterPassenger(payload);

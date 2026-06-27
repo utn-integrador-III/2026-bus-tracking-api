@@ -7,6 +7,7 @@ const email = z.string().trim().email().max(150);
 const password = z.string().min(8).max(100);
 const phone = z.string().trim().min(8).max(30).optional();
 const oauthProvider = z.enum(["google", "apple", "github"]);
+const seniorDocumentContentType = z.enum(["image/jpeg", "image/png", "image/webp"]);
 
 const birthDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
   message: "birth_date must use YYYY-MM-DD format.",
@@ -60,8 +61,17 @@ const oauthStartSchema = z
   })
   .strict();
 
+const seniorDocumentUploadUrlSchema = z
+  .object({
+    email,
+    file_name: z.string().trim().min(1).max(255),
+    content_type: seniorDocumentContentType,
+  })
+  .strict();
+
 module.exports = {
   registerPassengerSchema,
   loginSchema,
   oauthStartSchema,
+  seniorDocumentUploadUrlSchema,
 };

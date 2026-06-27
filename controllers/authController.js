@@ -13,4 +13,12 @@ authController.loginDriver = asyncHandler(async function loginDriver(req, res) {
   res.status(HTTP_STATUS.OK).json(result);
 });
 
+authController.createSeniorDocumentUploadUrl = asyncHandler(
+  async function createSeniorDocumentUploadUrl(req, res) {
+    const result = await authService.createSeniorDocumentUploadUrl(req.valid.body);
+
+    res.status(HTTP_STATUS.OK).json(result);
+  },
+);
+
 module.exports = authController;

@@ -25,6 +25,7 @@ describe("documentacion OpenAPI", () => {
     expect(Object.keys(paths["/health"])).toContain("get");
     expect(Object.keys(paths["/api/auth/admin/login"])).toContain("post");
     expect(Object.keys(paths["/api/auth/oauth/start"])).toContain("post");
+    expect(Object.keys(paths["/api/auth/senior-document/upload-url"])).toContain("post");
     expect(Object.keys(paths["/api/auth/session"])).toContain("get");
     expect(Object.keys(paths["/api/admin/routes"]).sort()).toEqual(["get", "post"]);
     expect(Object.keys(paths["/api/admin/routes/{id}"]).sort()).toEqual([
@@ -80,3 +81,4 @@ describe("documentacion OpenAPI", () => {
   expect(response.body.paths["/api/auth/driver/login"]).toHaveProperty("post");
 });
 });
+
