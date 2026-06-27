@@ -1,6 +1,7 @@
 "use strict";
 
 const { createClient } = require("@supabase/supabase-js");
+const WebSocket = require("ws");
 const { env, assertSupabaseConfig } = require("../config/env");
 const AppError = require("../utils/AppError");
 const { HTTP_STATUS } = require("../constants/httpStatus");
@@ -16,6 +17,7 @@ function getServiceClient() {
   assertSupabaseConfig();
   serviceClient = createClient(env.supabaseUrl, env.supabaseServiceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
+    realtime: { transport: WebSocket },
   });
   return serviceClient;
 }
@@ -27,6 +29,7 @@ function getAnonClient() {
   assertSupabaseConfig();
   anonClient = createClient(env.supabaseUrl, env.supabaseAnonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
+    realtime: { transport: WebSocket },
   });
   return anonClient;
 }

@@ -99,6 +99,24 @@ class SupabaseTripRepository {
     }
     return data || null;
   }
+
+  async findTripsByDriverId(driverId, statuses) {
+    let query = getServiceClient()
+      .from(TABLE)
+      .select(COLUMNS)
+      .eq("driver_id", driverId)
+      .order("departure_time", { ascending: false });
+
+    if (statuses && statuses.length > 0) {
+      query = query.in("status", statuses);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      throw databaseError(error);
+    }
+    return data || [];
+  }
 }
 
 module.exports = SupabaseTripRepository;
