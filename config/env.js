@@ -1,6 +1,51 @@
 "use strict";
 require("dotenv").config();
 
+const fs = require("node:fs");
+const path = require("node:path");
+
+function parseEnvValue(value) {
+  const trimmed = value.trim();
+  const quote = trimmed[0];
+  if (
+    trimmed.length >= 2 &&
+    (quote === "\"" || quote === "'") &&
+    trimmed[trimmed.length - 1] === quote
+  ) {
+    const unquoted = trimmed.slice(1, -1);
+    if (quote === "\"") {
+      return unquoted
+        .replace(/\\n/g, "\n")
+        .replace(/\\r/g, "\r")
+        .replace(/\\t/g, "\t");
+    }
+    return unquoted;
+  }
+  return trimmed.replace(/\s+#.*$/, "");
+}
+
+function loadEnvFile() {
+  const envPath = path.resolve(__dirname, "..", ".env");
+  if (!fs.existsSync(envPath)) {
+    return;
+  }
+
+  const envFile = fs.readFileSync(envPath, "utf8");
+  for (const line of envFile.split(/\r?\n/)) {
+    const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)?\s*$/);
+    if (!match) {
+      continue;
+    }
+
+    const [, key, rawValue = ""] = match;
+    if (process.env[key] === undefined) {
+      process.env[key] = parseEnvValue(rawValue);
+    }
+  }
+}
+
+loadEnvFile();
+
 function readString(key, fallback) {
   const raw = process.env[key];
   if (raw === undefined || raw === null || raw === "") {

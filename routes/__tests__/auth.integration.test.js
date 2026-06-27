@@ -92,7 +92,7 @@ describe("auth routes", () => {
       expect(authService.registerPassenger).not.toHaveBeenCalled();
     });
 
-    test("returns 400 when registration payload has unknown keys", async () => {
+    test.each(["Driver", "Admin"])("returns 400 when public registration tries role %s", async (role) => {
       const response = await request(app)
         .post("/api/auth/register")
         .send({
@@ -100,7 +100,7 @@ describe("auth routes", () => {
           email: "carlos@example.com",
           password: "Password123",
           phone: "88888888",
-          role: "Admin",
+          role,
         });
 
       expect(response.status).toBe(400);

@@ -49,13 +49,13 @@ describe("registerPassengerSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  test("rejects unknown keys", () => {
+  test.each(["Driver", "Admin"])("rejects public registration role escalation to %s", (role) => {
     const result = registerPassengerSchema.safeParse({
       name: "Carlos Marin",
       email: "carlos@example.com",
       password: "Password123",
       phone: "88888888",
-      role: "Admin",
+      role,
     });
 
     expect(result.success).toBe(false);

@@ -244,6 +244,63 @@ describe("auth.service", () => {
       expect(result.senior_verification_request.document_image_bucket).toBe("cedulas");
     });
 
+    test("forces Passenger role even when the payload is manipulated", async () => {
+      const createUserMock = jest.fn().mockResolvedValue({
+        data: {
+          user: {
+            id: validUserId,
+          },
+        },
+        error: null,
+      });
+
+      userRepository.findUserByEmail.mockResolvedValue(null);
+
+      getServiceClient.mockReturnValue({
+        auth: {
+          admin: {
+            createUser: createUserMock,
+          },
+        },
+      });
+
+      userRepository.createUserProfile.mockResolvedValue({
+        id: validUserId,
+        name: "Carlos Marin",
+        email: "carlos@example.com",
+        role: ROLES.PASSENGER,
+      });
+
+      passengerRepository.createPassengerProfile.mockResolvedValue({
+        user_id: validUserId,
+        phone: "88888888",
+        notification_preferences: null,
+        is_senior: false,
+        expo_push_token: null,
+      });
+
+      await authService.registerPassenger({
+        name: "Carlos Marin",
+        email: "carlos@example.com",
+        password: "Password123",
+        phone: "88888888",
+        role: ROLES.DRIVER,
+      });
+
+      expect(createUserMock).toHaveBeenCalledWith(expect.objectContaining({
+        user_metadata: {
+          name: "Carlos Marin",
+          role: ROLES.PASSENGER,
+        },
+      }));
+
+      expect(userRepository.createUserProfile).toHaveBeenCalledWith({
+        id: validUserId,
+        name: "Carlos Marin",
+        email: "carlos@example.com",
+        role: ROLES.PASSENGER,
+      });
+    });
     test("registers a passenger without phone", async () => {
       const createUserMock = jest.fn().mockResolvedValue({
         data: {
