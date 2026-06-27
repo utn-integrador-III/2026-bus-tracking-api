@@ -220,6 +220,186 @@ const updateTripRequestSchema = {
   example: { status: "Delayed" },
 };
 
+const latLngRequestSchema = {
+  type: "object",
+  required: ["latitude", "longitude"],
+  additionalProperties: false,
+  properties: {
+    latitude: {
+      type: "number",
+      minimum: -90,
+      maximum: 90,
+      example: 9.9763,
+    },
+    longitude: {
+      type: "number",
+      minimum: -180,
+      maximum: 180,
+      example: -84.8384,
+    },
+  },
+};
+
+const computeGoogleRouteRequestSchema = {
+  type: "object",
+  required: ["origin", "destination"],
+  additionalProperties: false,
+  properties: {
+    origin: {
+      $ref: "#/components/schemas/LatLngRequest",
+    },
+    destination: {
+      $ref: "#/components/schemas/LatLngRequest",
+    },
+  },
+  example: {
+    origin: {
+      latitude: 9.9763,
+      longitude: -84.8384,
+    },
+    destination: {
+      latitude: 9.9333,
+      longitude: -84.0833,
+    },
+  },
+};
+
+const computeGoogleRouteResponseSchema = {
+  type: "object",
+  required: ["distance_meters", "duration", "encoded_polyline"],
+  properties: {
+    distance_meters: {
+      type: "integer",
+      example: 97379,
+    },
+    duration: {
+      type: "string",
+      example: "6208s",
+    },
+    encoded_polyline: {
+      type: "string",
+      nullable: true,
+      example: "encoded-polyline",
+    },
+  },
+};
+
+const driverSchema = {
+  type: "object",
+  required: [
+    "user_id",
+    "name",
+    "email",
+    "role",
+    "license_number",
+    "isActive",
+    "created_at",
+  ],
+  properties: {
+    user_id: {
+      type: "string",
+      format: "uuid",
+      example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+    },
+    name: {
+      type: "string",
+      example: "Carlos Gomez",
+    },
+    email: {
+      type: "string",
+      format: "email",
+      example: "driver@example.com",
+    },
+    role: {
+      type: "string",
+      enum: ["Driver"],
+      example: "Driver",
+    },
+    license_number: {
+      type: "string",
+      example: "B1-123456",
+    },
+    isActive: {
+      type: "boolean",
+      example: true,
+    },
+    created_at: {
+      type: "string",
+      format: "date-time",
+      nullable: true,
+      example: "2026-06-20T10:00:00Z",
+    },
+  },
+};
+
+const createDriverRequestSchema = {
+  type: "object",
+  required: ["name", "email", "password", "license_number"],
+  additionalProperties: false,
+  properties: {
+    name: {
+      type: "string",
+      minLength: 1,
+      maxLength: 100,
+      example: "Carlos Gomez",
+    },
+    email: {
+      type: "string",
+      format: "email",
+      maxLength: 150,
+      example: "driver@example.com",
+    },
+    password: {
+      type: "string",
+      minLength: 8,
+      maxLength: 100,
+      example: "Password123",
+    },
+    license_number: {
+      type: "string",
+      minLength: 1,
+      maxLength: 80,
+      example: "B1-123456",
+    },
+  },
+};
+
+const updateDriverRequestSchema = {
+  type: "object",
+  minProperties: 1,
+  additionalProperties: false,
+  properties: {
+    name: {
+      type: "string",
+      minLength: 1,
+      maxLength: 100,
+      example: "Updated Driver",
+    },
+    email: {
+      type: "string",
+      format: "email",
+      maxLength: 150,
+      example: "updated.driver@example.com",
+    },
+    password: {
+      type: "string",
+      minLength: 8,
+      maxLength: 100,
+      example: "NewPassword123",
+    },
+    license_number: {
+      type: "string",
+      minLength: 1,
+      maxLength: 80,
+      example: "B2-999999",
+    },
+  },
+  example: {
+    name: "Updated Driver",
+    license_number: "B2-999999",
+  },
+};
+
 const registerPassengerRequestSchema = {
   type: "object",
   required: ["name", "email", "password"],
@@ -441,14 +621,26 @@ const openapiDocument = {
       description: `Consulta de rutas activas (roles ${ROLES.PASSENGER}, ${ROLES.DRIVER}, ${ROLES.ADMIN}).`,
     },
     {
+      name: "Admin - Drivers",
+      description:
+        `Driver CRUD endpoints. Conceptually restricted to role ${ROLES.ADMIN}. ` +
+        "Authentication is temporarily disabled: endpoints are open.",
+    },
+    {
       name: "Admin - Viajes",
       description: `CRUD de viajes (conceptualmente rol ${ROLES.ADMIN}).`,
     },
+
     {
       name: "Consumidor - Viajes",
       description:
         `Consulta de viajes visibles (roles ${ROLES.PASSENGER}, ${ROLES.DRIVER}, ${ROLES.ADMIN}). ` +
         "Excluye viajes Cancelled y Completed.",
+    },
+    {
+      name: "Google Routes",
+      description:
+        "Google Routes API integration for route distance, duration and encoded polyline calculation.",
     },
   ],
   components: {
@@ -472,6 +664,9 @@ const openapiDocument = {
       ConsumerTrip: consumerTripSchema,
       CreateTripRequest: createTripRequestSchema,
       UpdateTripRequest: updateTripRequestSchema,
+      Driver: driverSchema,
+      CreateDriverRequest: createDriverRequestSchema,
+      UpdateDriverRequest: updateDriverRequestSchema,
       RegisterPassengerRequest: registerPassengerRequestSchema,
       RegisterPassengerResponse: registerPassengerResponseSchema,
       LoginRequest: loginRequestSchema,
@@ -483,6 +678,9 @@ const openapiDocument = {
       PassengerIncident: passengerIncidentSchema,
       CreatePassengerIncidentRequest: createPassengerIncidentRequestSchema,
       CreatePassengerIncidentResponse: createPassengerIncidentResponseSchema,
+      LatLngRequest: latLngRequestSchema,
+      ComputeGoogleRouteRequest: computeGoogleRouteRequestSchema,
+      ComputeGoogleRouteResponse: computeGoogleRouteResponseSchema,
       CreatedResponse: {
         type: "object",
         required: ["id"],
@@ -507,6 +705,180 @@ const openapiDocument = {
         type: "object",
         required: ["status"],
         properties: { status: { type: "string", example: "ok" } },
+      },
+      SeniorVerificationStatus: {
+        type: "string",
+        enum: ["pending", "approved", "rejected"],
+        example: "pending",
+      },
+
+      SeniorVerificationRequest: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            format: "uuid",
+            example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+          },
+          passenger_id: {
+            type: "string",
+            format: "uuid",
+            example: "4f2504e0-4f89-41d3-9a0c-0305e82c3302",
+          },
+          document_image_bucket: {
+            type: "string",
+            example: "cedulas",
+          },
+          document_image_path: {
+            type: "string",
+            example: "passengers/senior.passenger@example.com/cedula.jpg",
+          },
+          status: {
+            $ref: "#/components/schemas/SeniorVerificationStatus",
+          },
+          reviewed_by: {
+            type: "string",
+            format: "uuid",
+            nullable: true,
+            example: "5f2504e0-4f89-41d3-9a0c-0305e82c3303",
+          },
+          reviewed_at: {
+            type: "string",
+            format: "date-time",
+            nullable: true,
+            example: "2026-06-20T11:00:00Z",
+          },
+          rejection_reason: {
+            type: "string",
+            nullable: true,
+            example: "The uploaded document is not readable.",
+          },
+          created_at: {
+            type: "string",
+            format: "date-time",
+            example: "2026-06-20T10:00:00Z",
+          },
+          updated_at: {
+            type: "string",
+            format: "date-time",
+            example: "2026-06-20T10:00:00Z",
+          },
+        },
+      },
+
+      SeniorVerificationRequestDetail: {
+        allOf: [
+          {
+            $ref: "#/components/schemas/SeniorVerificationRequest",
+          },
+          {
+            type: "object",
+            properties: {
+              user: {
+                type: "object",
+                nullable: true,
+                properties: {
+                  id: {
+                    type: "string",
+                    format: "uuid",
+                    example: "4f2504e0-4f89-41d3-9a0c-0305e82c3302",
+                  },
+                  name: {
+                    type: "string",
+                    example: "Senior Passenger",
+                  },
+                  email: {
+                    type: "string",
+                    format: "email",
+                    example: "senior.passenger@example.com",
+                  },
+                  is_active: {
+                    type: "boolean",
+                    example: false,
+                  },
+                  deactivated_at: {
+                    type: "string",
+                    format: "date-time",
+                    nullable: true,
+                  },
+                  created_at: {
+                    type: "string",
+                    format: "date-time",
+                  },
+                },
+              },
+              passenger: {
+                type: "object",
+                nullable: true,
+                properties: {
+                  user_id: {
+                    type: "string",
+                    format: "uuid",
+                    example: "4f2504e0-4f89-41d3-9a0c-0305e82c3302",
+                  },
+                  phone: {
+                    type: "string",
+                    nullable: true,
+                    example: "88882222",
+                  },
+                  notification_preferences: {
+                    type: "object",
+                    nullable: true,
+                  },
+                  is_senior: {
+                    type: "boolean",
+                    example: false,
+                  },
+                  expo_push_token: {
+                    type: "string",
+                    nullable: true,
+                  },
+                  birth_date: {
+                    type: "string",
+                    format: "date",
+                    nullable: true,
+                    example: "1960-05-10",
+                  },
+                  senior_status: {
+                    type: "string",
+                    example: "not_applicable",
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+
+      ApproveSeniorRequestBody: {
+        type: "object",
+        properties: {
+          reviewed_by: {
+            type: "string",
+            format: "uuid",
+            nullable: true,
+            example: "5f2504e0-4f89-41d3-9a0c-0305e82c3303",
+          },
+        },
+      },
+
+      RejectSeniorRequestBody: {
+        type: "object",
+        required: ["rejection_reason"],
+        properties: {
+          reviewed_by: {
+            type: "string",
+            format: "uuid",
+            nullable: true,
+            example: "5f2504e0-4f89-41d3-9a0c-0305e82c3303",
+          },
+          rejection_reason: {
+            type: "string",
+            minLength: 1,
+            maxLength: 500,
+            example: "The uploaded document is not readable.",
+          },
+        },
       },
     },
   },
@@ -607,6 +979,35 @@ const openapiDocument = {
           400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
           401: errorResponse("Email o password invalido."),
           403: errorResponse("La cuenta autenticada no pertenece a un administrador pre-verificado."),
+        },
+      },
+    },
+    "/api/auth/driver/login": {
+      post: {
+        tags: ["Authentication"],
+        summary: "Inicia sesion como conductor",
+        description:
+          "Autentica un usuario por email y password, y valida que tenga rol Driver.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/LoginRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "Inicio de sesion de conductor exitoso.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/LoginResponse" },
+              },
+            },
+          },
+          400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
+          401: errorResponse("Email o password invalido."),
+          403: errorResponse("El usuario autenticado no tiene rol Driver."),
         },
       },
     },
@@ -863,6 +1264,432 @@ const openapiDocument = {
         },
       },
     },
+    "/api/admin/drivers": {
+      get: {
+        tags: ["Admin - Drivers"],
+        summary: "List drivers",
+        description: "Returns all driver profiles, including active and inactive drivers.",
+        responses: {
+          200: {
+            description: "Driver list returned successfully.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "array",
+                  items: { $ref: "#/components/schemas/Driver" },
+                },
+              },
+            },
+          },
+          500: errorResponse("Internal server error."),
+        },
+      },
+      post: {
+        tags: ["Admin - Drivers"],
+        summary: "Create driver",
+        description: "Creates a driver authentication account and local driver profile.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/CreateDriverRequest" },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: "Driver created successfully.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Driver" },
+              },
+            },
+          },
+          400: errorResponse("Invalid driver payload."),
+          409: errorResponse("A user with this email already exists."),
+          500: errorResponse("Internal server error."),
+        },
+      },
+    },
+    "/api/admin/drivers/{id}": {
+      get: {
+        tags: ["Admin - Drivers"],
+        summary: "Get driver by id",
+        description: "Returns one driver profile by user id.",
+        parameters: [idPathParam],
+        responses: {
+          200: {
+            description: "Driver returned successfully.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Driver" },
+              },
+            },
+          },
+          400: errorResponse("Id is not a valid UUID."),
+          404: errorResponse("The requested driver does not exist."),
+          500: errorResponse("Internal server error."),
+        },
+      },
+      put: {
+        tags: ["Admin - Drivers"],
+        summary: "Update driver",
+        description:
+          "Updates driver authentication data, local user profile and driver profile.",
+        parameters: [idPathParam],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/UpdateDriverRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "Driver updated successfully.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Driver" },
+              },
+            },
+          },
+          400: errorResponse("Id is not a valid UUID or body is invalid."),
+          404: errorResponse("The requested driver does not exist."),
+          409: errorResponse("A user with this email already exists."),
+          500: errorResponse("Internal server error."),
+        },
+      },
+      delete: {
+        tags: ["Admin - Drivers"],
+        summary: "Deactivate driver",
+        description:
+          "Soft-deletes a driver by setting users.isActive to false. The record is not physically deleted.",
+        parameters: [idPathParam],
+        responses: {
+          200: {
+            description: "Driver deactivated successfully.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Driver" },
+              },
+            },
+          },
+          400: errorResponse("Id is not a valid UUID."),
+          404: errorResponse("The requested driver does not exist."),
+          500: errorResponse("Internal server error."),
+        },
+      },
+    },
+    "/api/admin/senior-requests": {
+    get: {
+      tags: ["Admin - Senior Requests"],
+      summary: "List senior citizen verification requests",
+      description:
+        "Returns senior citizen verification requests. Administrators can filter by status.",
+      parameters: [
+        {
+          name: "status",
+          in: "query",
+          required: false,
+          schema: {
+            $ref: "#/components/schemas/SeniorVerificationStatus",
+          },
+          example: "pending",
+        },
+      ],
+      responses: {
+        200: {
+          description: "Senior verification requests returned successfully.",
+          content: {
+            "application/json": {
+              schema: {
+                type: "array",
+                items: {
+                  $ref: "#/components/schemas/SeniorVerificationRequestDetail",
+                },
+              },
+            },
+          },
+        },
+        400: {
+          description: "Invalid query parameters.",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/ErrorEnvelope",
+              },
+              example: {
+                error: {
+                  code: ERROR_CODES.SENIOR_VERIFICATION_VALIDATION_FAILED,
+                  message: "Validacion fallida en query.",
+                  details: [
+                    {
+                      path: "status",
+                      message: "Invalid enum value.",
+                      code: "invalid_enum_value",
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  "/api/admin/senior-requests/{id}": {
+    get: {
+      tags: ["Admin - Senior Requests"],
+      summary: "Get a senior citizen verification request",
+      description:
+        "Returns the detail of a senior citizen verification request by id.",
+      parameters: [
+        {
+          name: "id",
+          in: "path",
+          required: true,
+          schema: {
+            type: "string",
+            format: "uuid",
+          },
+          example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+        },
+      ],
+      responses: {
+        200: {
+          description: "Senior verification request returned successfully.",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/SeniorVerificationRequestDetail",
+              },
+            },
+          },
+        },
+        400: {
+          description: "Invalid request id.",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/ErrorEnvelope",
+              },
+            },
+          },
+        },
+        404: {
+          description: "Senior verification request not found.",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/ErrorEnvelope",
+              },
+              example: {
+                error: {
+                  code: ERROR_CODES.SENIOR_VERIFICATION_NOT_FOUND,
+                  message:
+                    "The requested senior verification request does not exist.",
+                  details: null,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+
+  "/api/admin/senior-requests/{id}/approve": {
+    patch: {
+      tags: ["Admin - Senior Requests"],
+      summary: "Approve a senior citizen verification request",
+      description:
+        "Approves a pending senior citizen verification request, activates the user account, and marks the passenger as an authorized senior citizen.",
+      parameters: [
+        {
+          name: "id",
+          in: "path",
+          required: true,
+          schema: {
+            type: "string",
+            format: "uuid",
+          },
+          example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+        },
+      ],
+      requestBody: {
+        required: false,
+        content: {
+          "application/json": {
+            schema: {
+              $ref: "#/components/schemas/ApproveSeniorRequestBody",
+            },
+            example: {},
+          },
+        },
+      },
+      responses: {
+        200: {
+          description: "Senior verification request approved successfully.",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/SeniorVerificationRequestDetail",
+              },
+              example: {
+                id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                passenger_id: "4f2504e0-4f89-41d3-9a0c-0305e82c3302",
+                document_image_bucket: "cedulas",
+                document_image_path:
+                  "passengers/senior.passenger@example.com/cedula.jpg",
+                status: "approved",
+                reviewed_by: null,
+                reviewed_at: "2026-06-20T11:00:00Z",
+                rejection_reason: null,
+                created_at: "2026-06-20T10:00:00Z",
+                updated_at: "2026-06-20T11:00:00Z",
+              },
+            },
+          },
+        },
+        400: {
+          description: "Invalid request payload.",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/ErrorEnvelope",
+              },
+            },
+          },
+        },
+        404: {
+          description: "Senior verification request not found.",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/ErrorEnvelope",
+              },
+            },
+          },
+        },
+        409: {
+          description: "The request was already reviewed.",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/ErrorEnvelope",
+              },
+              example: {
+                error: {
+                  code: ERROR_CODES.SENIOR_VERIFICATION_ALREADY_REVIEWED,
+                  message:
+                    "This senior verification request has already been reviewed.",
+                  details: null,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+
+  "/api/admin/senior-requests/{id}/reject": {
+    patch: {
+      tags: ["Admin - Senior Requests"],
+      summary: "Reject a senior citizen verification request",
+      description:
+        "Rejects a pending senior citizen verification request, keeps the user inactive, and stores a rejection reason.",
+      parameters: [
+        {
+          name: "id",
+          in: "path",
+          required: true,
+          schema: {
+            type: "string",
+            format: "uuid",
+          },
+          example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              $ref: "#/components/schemas/RejectSeniorRequestBody",
+            },
+            example: {
+              rejection_reason: "The uploaded document is not readable.",
+            },
+          },
+        },
+      },
+      responses: {
+        200: {
+          description: "Senior verification request rejected successfully.",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/SeniorVerificationRequestDetail",
+              },
+              example: {
+                id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                passenger_id: "4f2504e0-4f89-41d3-9a0c-0305e82c3302",
+                document_image_bucket: "cedulas",
+                document_image_path:
+                  "passengers/senior.passenger@example.com/cedula.jpg",
+                status: "rejected",
+                reviewed_by: null,
+                reviewed_at: "2026-06-20T11:00:00Z",
+                rejection_reason: "The uploaded document is not readable.",
+                created_at: "2026-06-20T10:00:00Z",
+                updated_at: "2026-06-20T11:00:00Z",
+              },
+            },
+          },
+        },
+        400: {
+          description: "Invalid request payload.",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/ErrorEnvelope",
+              },
+            },
+          },
+        },
+        404: {
+          description: "Senior verification request not found.",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/ErrorEnvelope",
+              },
+            },
+          },
+        },
+        409: {
+          description: "The request was already reviewed.",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/ErrorEnvelope",
+              },
+              example: {
+                error: {
+                  code: ERROR_CODES.SENIOR_VERIFICATION_ALREADY_REVIEWED,
+                  message:
+                    "This senior verification request has already been reviewed.",
+                  details: null,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
     "/api/passenger/routes": {
       get: {
         tags: ["Consumidor - Rutas"],
@@ -1058,6 +1885,39 @@ const openapiDocument = {
             },
           },
           401: unauthorizedResponse,
+        },
+      },
+    },
+    "/api/google/routes/compute": {
+      post: {
+        tags: ["Google Routes"],
+        summary: "Compute route with Google Routes API",
+        description:
+          "Calculates driving distance, duration and encoded polyline between two coordinates using Google Routes API.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/ComputeGoogleRouteRequest",
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "Route calculated successfully.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ComputeGoogleRouteResponse",
+                },
+              },
+            },
+          },
+          400: errorResponse("Invalid coordinates payload."),
+          404: errorResponse("Google Routes API did not return a route."),
+          500: errorResponse("Google Routes API request failed or internal server error."),
         },
       },
     },

@@ -1,41 +1,35 @@
 "use strict";
 
-const SupabasePassengerProfileRepository = require("../src/modules/auth/infrastructure/SupabasePassengerProfileRepository");
 const { getServiceClient } = require("../database/supabaseClient");
 const AppError = require("../utils/AppError");
 const { HTTP_STATUS } = require("../constants/httpStatus");
 const { ERROR_CODES } = require("../constants/errorCodes");
 
-const repository = new SupabasePassengerProfileRepository();
-
-const TABLE = "passengers";
-const COLUMNS =
-  "user_id, phone, notification_preferences, is_senior, expo_push_token, birth_date, senior_status";
+const TABLE = "drivers";
+const COLUMNS = "user_id, license_number";
 
 function databaseError(error) {
   return new AppError(
     HTTP_STATUS.INTERNAL_SERVER_ERROR,
     ERROR_CODES.DATABASE_ERROR,
-    "Error while accessing passengers data.",
+    "Error while accessing drivers data.",
     error ? error.message : undefined,
   );
 }
 
-async function createPassengerProfile(payload) {
+async function listDriverProfiles() {
   const { data, error } = await getServiceClient()
     .from(TABLE)
-    .upsert(payload, { onConflict: "user_id" })
-    .select(COLUMNS)
-    .single();
+    .select(COLUMNS);
 
   if (error) {
     throw databaseError(error);
   }
 
-  return data;
+  return data || [];
 }
 
-async function findPassengerById(userId) {
+async function findDriverProfileByUserId(userId) {
   const { data, error } = await getServiceClient()
     .from(TABLE)
     .select(COLUMNS)
@@ -49,7 +43,21 @@ async function findPassengerById(userId) {
   return data || null;
 }
 
-async function updatePassengerProfile(userId, payload) {
+async function createDriverProfile(payload) {
+  const { data, error } = await getServiceClient()
+    .from(TABLE)
+    .insert(payload)
+    .select(COLUMNS)
+    .single();
+
+  if (error) {
+    throw databaseError(error);
+  }
+
+  return data;
+}
+
+async function updateDriverProfile(userId, payload) {
   const { data, error } = await getServiceClient()
     .from(TABLE)
     .update(payload)
@@ -65,8 +73,8 @@ async function updatePassengerProfile(userId, payload) {
 }
 
 module.exports = {
-  createPassengerProfile,
-  findPassengerById,
-  updatePassengerProfile,
-  basePassengerProfileRepository: repository,
+  listDriverProfiles,
+  findDriverProfileByUserId,
+  createDriverProfile,
+  updateDriverProfile,
 };

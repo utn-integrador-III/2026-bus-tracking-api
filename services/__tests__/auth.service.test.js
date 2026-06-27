@@ -5,14 +5,27 @@ jest.mock("../../database/supabaseClient", () => ({
   getAnonClient: jest.fn(),
 }));
 
+jest.mock("../../repositories/seniorVerificationRepository", () => ({
+  createPendingRequest: jest.fn(),
+}));
+
 jest.mock("../../repositories/userRepository", () => ({
   findUserById: jest.fn(),
   findUserByEmail: jest.fn(),
   createUserProfile: jest.fn(),
+  updateUserProfile: jest.fn(),
+  setUserActive: jest.fn(),
+}));
+
+jest.mock("../../repositories/userRoleRepository", () => ({
+  createUserRole: jest.fn(),
+  findRoleByUserId: jest.fn(),
+  findRoleByUserIdAndRole: jest.fn(),
 }));
 
 jest.mock("../../repositories/passengerRepository", () => ({
   createPassengerProfile: jest.fn(),
+  updatePassengerProfile: jest.fn(),
 }));
 
 jest.mock("../../repositories/authAuditRepository", () => ({
@@ -21,6 +34,8 @@ jest.mock("../../repositories/authAuditRepository", () => ({
 
 const { getServiceClient, getAnonClient } = require("../../database/supabaseClient");
 const userRepository = require("../../repositories/userRepository");
+const userRoleRepository = require("../../repositories/userRoleRepository");
+const seniorVerificationRepository = require("../../repositories/seniorVerificationRepository");
 const passengerRepository = require("../../repositories/passengerRepository");
 const authAuditRepository = require("../../repositories/authAuditRepository");
 const authService = require("../auth.service");
@@ -31,7 +46,7 @@ const validUserId = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
 
 describe("auth.service", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
   });
 
   describe("registerPassenger", () => {
@@ -60,6 +75,9 @@ describe("auth.service", () => {
         name: "Carlos Marin",
         email: "carlos@example.com",
         role: "Passenger",
+        is_active: true,
+        deactivated_at: null,
+        created_at: "2026-06-20T10:00:00Z",
       });
 
       passengerRepository.createPassengerProfile.mockResolvedValue({
@@ -101,21 +119,129 @@ describe("auth.service", () => {
         phone: "88888888",
       });
 
-      expect(result).toEqual({
-        user: {
-          id: validUserId,
-          name: "Carlos Marin",
-          email: "carlos@example.com",
-          role: "Passenger",
+      expect(result.user.role).toBe("Passenger");
+      expect(result.passenger.phone).toBe("88888888");
+      expect(seniorVerificationRepository.createPendingRequest).not.toHaveBeenCalled();
+    });
+
+    test("registers a senior passenger request and leaves the account inactive", async () => {
+      const createUserMock = jest.fn().mockResolvedValue({
+        data: {
+          user: {
+            id: validUserId,
+          },
         },
-        passenger: {
-          user_id: validUserId,
-          phone: "88888888",
-          notification_preferences: null,
-          is_senior: false,
-          expo_push_token: null,
+        error: null,
+      });
+
+      userRepository.findUserByEmail.mockResolvedValue(null);
+
+      getServiceClient.mockReturnValue({
+        auth: {
+          admin: {
+            createUser: createUserMock,
+          },
         },
       });
+
+      userRepository.createUserProfile.mockResolvedValue({
+        id: validUserId,
+        name: "Senior Passenger",
+        email: "senior.passenger@example.com",
+        role: "Passenger",
+        is_active: false,
+        deactivated_at: null,
+        created_at: "2026-06-20T10:00:00Z",
+      });
+
+      userRepository.setUserActive.mockResolvedValue({
+        id: validUserId,
+        name: "Senior Passenger",
+        email: "senior.passenger@example.com",
+        role: "Passenger",
+        is_active: false,
+        deactivated_at: "2026-06-20T10:00:00Z",
+        created_at: "2026-06-20T10:00:00Z",
+      });
+
+      passengerRepository.createPassengerProfile.mockResolvedValue({
+        user_id: validUserId,
+        phone: "88882222",
+        notification_preferences: null,
+        is_senior: false,
+        expo_push_token: null,
+        birth_date: "1960-05-10",
+        senior_status: "pending",
+      });
+
+      passengerRepository.updatePassengerProfile.mockResolvedValue({
+        user_id: validUserId,
+        phone: "88882222",
+        notification_preferences: null,
+        is_senior: false,
+        expo_push_token: null,
+        birth_date: "1960-05-10",
+        senior_status: "pending",
+      });
+
+      seniorVerificationRepository.createPendingRequest.mockResolvedValue({
+        id: "senior-request-id",
+        passenger_id: validUserId,
+        document_image_bucket: "cedulas",
+        document_image_path: "passengers/senior.passenger@example.com/cedula.jpg",
+        status: "pending",
+        reviewed_by: null,
+        reviewed_at: null,
+        rejection_reason: null,
+        created_at: "2026-06-20T10:00:00Z",
+        updated_at: "2026-06-20T10:00:00Z",
+      });
+
+      const result = await authService.registerPassenger({
+        name: "Senior Passenger",
+        email: "senior.passenger@example.com",
+        password: "Password123",
+        phone: "88882222",
+        is_senior_request: true,
+        birth_date: "1960-05-10",
+        document_image_path: "passengers/senior.passenger@example.com/cedula.jpg",
+      });
+
+      expect(createUserMock).toHaveBeenCalledWith({
+        email: "senior.passenger@example.com",
+        password: "Password123",
+        email_confirm: true,
+        user_metadata: {
+          name: "Senior Passenger",
+          role: "Passenger",
+        },
+      });
+
+      expect(userRepository.createUserProfile).toHaveBeenCalledWith({
+        id: validUserId,
+        name: "Senior Passenger",
+        email: "senior.passenger@example.com",
+        role: "Passenger",
+      });
+
+      expect(passengerRepository.createPassengerProfile).toHaveBeenCalledWith({
+        user_id: validUserId,
+        phone: "88882222",
+      });
+
+      expect(seniorVerificationRepository.createPendingRequest).toHaveBeenCalledWith({
+        passenger_id: validUserId,
+        document_image_bucket: "cedulas",
+        document_image_path: "passengers/senior.passenger@example.com/cedula.jpg",
+        status: "pending",
+      });
+
+      expect(result.user.is_active).toBe(false);
+      expect(result.user.role).toBe("Passenger");
+      expect(result.passenger.senior_status).toBe("pending");
+      expect(result.passenger.is_senior).toBe(false);
+      expect(result.senior_verification_request.status).toBe("pending");
+      expect(result.senior_verification_request.document_image_bucket).toBe("cedulas");
     });
 
     test("registers a passenger without phone", async () => {
@@ -143,6 +269,9 @@ describe("auth.service", () => {
         name: "Carlos Marin",
         email: "carlos@example.com",
         role: "Passenger",
+        is_active: true,
+        deactivated_at: null,
+        created_at: "2026-06-20T10:00:00Z",
       });
 
       passengerRepository.createPassengerProfile.mockResolvedValue({
@@ -186,6 +315,7 @@ describe("auth.service", () => {
 
       expect(getServiceClient).not.toHaveBeenCalled();
       expect(userRepository.createUserProfile).not.toHaveBeenCalled();
+      expect(userRoleRepository.createUserRole).not.toHaveBeenCalled();
       expect(passengerRepository.createPassengerProfile).not.toHaveBeenCalled();
     });
 
@@ -217,6 +347,7 @@ describe("auth.service", () => {
       });
 
       expect(userRepository.createUserProfile).not.toHaveBeenCalled();
+      expect(userRoleRepository.createUserRole).not.toHaveBeenCalled();
       expect(passengerRepository.createPassengerProfile).not.toHaveBeenCalled();
     });
   });
@@ -248,11 +379,18 @@ describe("auth.service", () => {
           signInWithPassword: signInWithPasswordMock,
         },
       });
+
       userRepository.findUserById.mockResolvedValue({
         id: validUserId,
         email: "carlos@example.com",
         role: "Passenger",
         name: "Carlos Marin",
+      });
+
+      userRoleRepository.findRoleByUserId.mockResolvedValue({
+        id: "role-id",
+        user_id: validUserId,
+        role: "Passenger",
       });
 
       const result = await authService.loginUser({
@@ -301,7 +439,14 @@ describe("auth.service", () => {
           }),
         },
       });
+
       userRepository.findUserById.mockResolvedValue(null);
+
+      userRoleRepository.findRoleByUserId.mockResolvedValue({
+        id: "role-id",
+        user_id: validUserId,
+        role: "Passenger",
+      });
 
       const result = await authService.loginUser({
         email: "carlos@example.com",
@@ -310,6 +455,41 @@ describe("auth.service", () => {
 
       expect(result.user.role).toBeNull();
       expect(result.user.name).toBeNull();
+    });
+
+    test("returns null role when user role does not exist", async () => {
+      getAnonClient.mockReturnValue({
+        auth: {
+          signInWithPassword: jest.fn().mockResolvedValue({
+            data: {
+              session: {
+                access_token: "access-token",
+                refresh_token: "refresh-token",
+                expires_in: 3600,
+                token_type: "bearer",
+              },
+              user: {
+                id: validUserId,
+                email: "carlos@example.com",
+                user_metadata: {
+                  name: "Carlos Marin",
+                },
+              },
+            },
+            error: null,
+          }),
+        },
+      });
+
+      userRepository.findUserById.mockResolvedValue(null);
+      userRoleRepository.findRoleByUserId.mockResolvedValue(null);
+
+      const result = await authService.loginUser({
+        email: "carlos@example.com",
+        password: "Password123",
+      });
+
+      expect(result.user.role).toBeNull();
     });
 
     test("uses the database role and writes a successful audit log", async () => {
@@ -336,6 +516,7 @@ describe("auth.service", () => {
           }),
         },
       });
+
       userRepository.findUserById.mockResolvedValue({
         id: validUserId,
         email: "admin@example.com",
@@ -443,6 +624,7 @@ describe("auth.service", () => {
           }),
         },
       });
+
       userRepository.findUserById.mockResolvedValue({
         id: validUserId,
         email: "carlos@example.com",
@@ -451,7 +633,10 @@ describe("auth.service", () => {
       });
 
       await expect(
-        authService.loginAdmin({ email: "carlos@example.com", password: "Password123" }),
+        authService.loginAdmin({
+          email: "carlos@example.com",
+          password: "Password123",
+        }),
       ).rejects.toMatchObject({
         code: ERROR_CODES.AUTH_ADMIN_REQUIRED,
       });
@@ -468,7 +653,10 @@ describe("auth.service", () => {
       });
 
       await expect(
-        authService.startOAuth({ provider: "google", redirect_to: "https://app.example.com/callback" }),
+        authService.startOAuth({
+          provider: "google",
+          redirect_to: "https://app.example.com/callback",
+        }),
       ).resolves.toEqual({
         provider: "google",
         authorization_url: "https://auth.example.com/google",
@@ -491,6 +679,114 @@ describe("auth.service", () => {
         role: ROLES.ADMIN,
         capabilities: ["admin:routes", "admin:trips", "auth:admin"],
       });
+    });
+  });
+
+  describe("loginDriver", () => {
+    test("logs in a driver successfully", async () => {
+      getAnonClient.mockReturnValue({
+        auth: {
+          signInWithPassword: jest.fn().mockResolvedValue({
+            data: {
+              session: {
+                access_token: "driver-access-token",
+                refresh_token: "driver-refresh-token",
+                expires_in: 3600,
+                token_type: "bearer",
+              },
+              user: {
+                id: validUserId,
+                email: "driver@example.com",
+                user_metadata: {
+                  name: "Carlos Driver",
+                },
+              },
+            },
+            error: null,
+          }),
+        },
+      });
+
+      userRepository.findUserById.mockResolvedValue({
+        id: validUserId,
+        email: "driver@example.com",
+        role: "Driver",
+        name: "Carlos Driver",
+      });
+
+      userRoleRepository.findRoleByUserId.mockResolvedValue({
+        id: "role-id",
+        user_id: validUserId,
+        role: "Driver",
+      });
+
+      userRoleRepository.findRoleByUserIdAndRole.mockResolvedValue({
+        id: "role-id",
+        user_id: validUserId,
+        role: "Driver",
+      });
+
+      const result = await authService.loginDriver({
+        email: "driver@example.com",
+        password: "Password123",
+      });
+
+      expect(result.access_token).toBe("driver-access-token");
+      expect(result.user.role).toBe("Driver");
+    });
+
+    test("rejects login when user is not a driver", async () => {
+      getAnonClient.mockReturnValue({
+        auth: {
+          signInWithPassword: jest.fn().mockResolvedValue({
+            data: {
+              session: {
+                access_token: "passenger-access-token",
+                refresh_token: "passenger-refresh-token",
+                expires_in: 3600,
+                token_type: "bearer",
+              },
+              user: {
+                id: validUserId,
+                email: "passenger@example.com",
+                user_metadata: {
+                  name: "Carlos Passenger",
+                },
+              },
+            },
+            error: null,
+          }),
+        },
+      });
+
+      userRepository.findUserById.mockResolvedValue({
+        id: validUserId,
+        email: "passenger@example.com",
+        role: "Passenger",
+        name: "Carlos Passenger",
+      });
+
+      userRoleRepository.findRoleByUserId.mockResolvedValue({
+        id: "role-id",
+        user_id: validUserId,
+        role: "Passenger",
+      });
+
+      userRoleRepository.findRoleByUserIdAndRole.mockResolvedValue(null);
+
+      await expect(
+        authService.loginDriver({
+          email: "passenger@example.com",
+          password: "Password123",
+        }),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.FORBIDDEN_ROLE,
+      });
+
+      expect(userRoleRepository.findRoleByUserIdAndRole).toHaveBeenCalledWith(
+        validUserId,
+        "Driver",
+      );
     });
   });
 });

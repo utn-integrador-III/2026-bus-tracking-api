@@ -71,4 +71,12 @@ describe("documentacion OpenAPI", () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain("swagger-ui");
   });
+
+  test("OpenAPI document includes driver login endpoint", async () => {
+  const response = await request(app).get("/api/docs.json");
+
+  expect(response.status).toBe(200);
+  expect(response.body.paths).toHaveProperty("/api/auth/driver/login");
+  expect(response.body.paths["/api/auth/driver/login"]).toHaveProperty("post");
+});
 });
