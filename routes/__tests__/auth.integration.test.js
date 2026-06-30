@@ -7,6 +7,7 @@ jest.mock("../../services/auth.service", () => ({
   startOAuth: jest.fn(),
   getSession: jest.fn(),
   loginDriver: jest.fn(),
+  createSeniorDocumentUploadUrl: jest.fn(),
 }));
 
 jest.mock("../../database/supabaseClient", () => ({
@@ -37,6 +38,50 @@ describe("auth routes", () => {
     jest.clearAllMocks();
   });
 
+  describe("POST /api/auth/senior-document/upload-url", () => {
+    test("returns 200 when the upload URL is created", async () => {
+      authService.createSeniorDocumentUploadUrl.mockResolvedValue({
+        bucket: "cedulas",
+        path: "passengers/senior.passenger@example.com/cedula.jpg",
+        signed_url: "https://storage.example.com/upload",
+        token: "upload-token",
+      });
+
+      const response = await request(app)
+        .post("/api/auth/senior-document/upload-url")
+        .send({
+          email: "senior.passenger@example.com",
+          file_name: "cedula.jpg",
+          content_type: "image/jpeg",
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        bucket: "cedulas",
+        path: "passengers/senior.passenger@example.com/cedula.jpg",
+        signed_url: "https://storage.example.com/upload",
+        token: "upload-token",
+      });
+      expect(authService.createSeniorDocumentUploadUrl).toHaveBeenCalledWith({
+        email: "senior.passenger@example.com",
+        file_name: "cedula.jpg",
+        content_type: "image/jpeg",
+      });
+    });
+
+    test("returns 400 for unsupported content types", async () => {
+      const response = await request(app)
+        .post("/api/auth/senior-document/upload-url")
+        .send({
+          email: "senior.passenger@example.com",
+          file_name: "cedula.pdf",
+          content_type: "application/pdf",
+        });
+
+      expect(response.status).toBe(400);
+      expect(authService.createSeniorDocumentUploadUrl).not.toHaveBeenCalled();
+    });
+  });
   describe("POST /api/auth/register", () => {
     test("returns 201 when passenger registration succeeds", async () => {
       authService.registerPassenger.mockResolvedValue({
@@ -92,7 +137,7 @@ describe("auth routes", () => {
       expect(authService.registerPassenger).not.toHaveBeenCalled();
     });
 
-    test("returns 400 when registration payload has unknown keys", async () => {
+    test.each(["Driver", "Admin"])("returns 400 when public registration tries role %s", async (role) => {
       const response = await request(app)
         .post("/api/auth/register")
         .send({
@@ -100,7 +145,7 @@ describe("auth routes", () => {
           email: "carlos@example.com",
           password: "Password123",
           phone: "88888888",
-          role: "Admin",
+          role,
         });
 
       expect(response.status).toBe(400);

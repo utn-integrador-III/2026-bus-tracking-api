@@ -8,10 +8,17 @@ const {
   registerPassengerSchema,
   loginSchema,
   oauthStartSchema,
+  seniorDocumentUploadUrlSchema,
 } = require("../models/auth.model");
 const { ERROR_CODES } = require("../constants/errorCodes");
 
 const router = express.Router();
+
+router.post(
+  "/senior-document/upload-url",
+  validate({ body: seniorDocumentUploadUrlSchema }, ERROR_CODES.AUTH_VALIDATION_FAILED),
+  controller.createSeniorDocumentUploadUrl,
+);
 
 router.post(
   "/register",

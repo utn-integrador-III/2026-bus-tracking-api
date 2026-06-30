@@ -414,6 +414,63 @@ const registerPassengerRequestSchema = {
     },
     password: { type: "string", minLength: 8, maxLength: 100, example: "Password123" },
     phone: { type: "string", minLength: 8, maxLength: 30, example: "88888888" },
+    is_senior_request: {
+      type: "boolean",
+      default: false,
+      example: false,
+      description: "Set true when the passenger requests senior citizen verification.",
+    },
+    birth_date: {
+      type: "string",
+      pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+      example: "1960-05-10",
+      description: "Required when is_senior_request is true.",
+    },
+    document_image_path: {
+      type: "string",
+      maxLength: 500,
+      example: "passengers/senior.passenger@example.com/cedula.jpg",
+      description: "Required when is_senior_request is true.",
+    },
+  },
+};
+
+const seniorDocumentUploadUrlRequestSchema = {
+  type: "object",
+  required: ["email", "file_name", "content_type"],
+  additionalProperties: false,
+  properties: {
+    email: {
+      type: "string",
+      format: "email",
+      maxLength: 150,
+      example: "senior.passenger@example.com",
+    },
+    file_name: {
+      type: "string",
+      minLength: 1,
+      maxLength: 255,
+      example: "cedula-frontal.jpg",
+    },
+    content_type: {
+      type: "string",
+      enum: ["image/jpeg", "image/png", "image/webp"],
+      example: "image/jpeg",
+    },
+  },
+};
+
+const seniorDocumentUploadUrlResponseSchema = {
+  type: "object",
+  required: ["bucket", "path", "signed_url", "token"],
+  properties: {
+    bucket: { type: "string", example: "cedulas" },
+    path: {
+      type: "string",
+      example: "passengers/senior.passenger@example.com/1782511200000-cedula-frontal.jpg",
+    },
+    signed_url: { type: "string", format: "uri" },
+    token: { type: "string", nullable: true },
   },
 };
 
@@ -451,6 +508,13 @@ const passengerProfileSchema = {
     notification_preferences: { type: "object", nullable: true, additionalProperties: true },
     is_senior: { type: "boolean", nullable: true, example: false },
     expo_push_token: { type: "string", nullable: true },
+    birth_date: { type: "string", nullable: true, example: "1960-05-10" },
+    senior_status: {
+      type: "string",
+      nullable: true,
+      enum: ["not_applicable", "pending", "approved", "rejected", null],
+      example: "pending",
+    },
   },
 };
 
@@ -669,6 +733,8 @@ const openapiDocument = {
       UpdateDriverRequest: updateDriverRequestSchema,
       RegisterPassengerRequest: registerPassengerRequestSchema,
       RegisterPassengerResponse: registerPassengerResponseSchema,
+      SeniorDocumentUploadUrlRequest: seniorDocumentUploadUrlRequestSchema,
+      SeniorDocumentUploadUrlResponse: seniorDocumentUploadUrlResponseSchema,
       LoginRequest: loginRequestSchema,
       LoginResponse: loginResponseSchema,
       OAuthStartRequest: oauthStartRequestSchema,
@@ -896,6 +962,34 @@ const openapiDocument = {
               },
             },
           },
+        },
+      },
+    },
+    "/api/auth/senior-document/upload-url": {
+      post: {
+        tags: ["Authentication"],
+        summary: "Genera URL firmada para documento de adulto mayor",
+        description:
+          "Permite que el cliente movil suba la imagen de identificacion al bucket cedulas antes del registro senior.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/SeniorDocumentUploadUrlRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "URL firmada creada correctamente.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SeniorDocumentUploadUrlResponse" },
+              },
+            },
+          },
+          400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
+          500: errorResponse("No se pudo crear la URL firmada para subir el documento."),
         },
       },
     },
@@ -1925,3 +2019,4 @@ const openapiDocument = {
 };
 
 module.exports = { openapiDocument };
+
