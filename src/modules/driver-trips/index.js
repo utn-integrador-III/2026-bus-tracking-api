@@ -146,8 +146,8 @@ class DriverTripService {
       trip_id: tripId,
       latitude: data.latitude,
       longitude: data.longitude,
-      speed: data.speed || null,
-      heading: data.heading || null,
+      speed: data.speed ?? null,
+      heading: data.heading ?? null,
       recorded_at: data.recorded_at || new Date().toISOString(),
     });
 
