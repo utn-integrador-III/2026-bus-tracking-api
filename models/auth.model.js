@@ -9,9 +9,28 @@ const phone = z.string().trim().min(8).max(30).optional();
 const oauthProvider = z.enum(["google", "apple", "github"]);
 const seniorDocumentContentType = z.enum(["image/jpeg", "image/png", "image/webp"]);
 
-const birthDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
-  message: "birth_date must use YYYY-MM-DD format.",
-});
+function isFutureDate(dateStr) {
+  const date = new Date(dateStr + "T00:00:00Z");
+  const today = new Date();
+  const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  return date > todayUTC;
+}
+
+function calculateAge(dateStr) {
+  const birth = new Date(dateStr + "T00:00:00Z");
+  const today = new Date();
+  let age = today.getUTCFullYear() - birth.getUTCFullYear();
+  const monthDiff = today.getUTCMonth() - birth.getUTCMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getUTCDate() < birth.getUTCDate())) {
+    age--;
+  }
+  return age;
+}
+
+const birthDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "birth_date must use YYYY-MM-DD format." })
+  .refine((val) => !isFutureDate(val), { message: "birth_date cannot be in the future." });
 
 const registerPassengerSchema = z
   .object({
@@ -35,6 +54,12 @@ const registerPassengerSchema = z
         code: z.ZodIssueCode.custom,
         path: ["birth_date"],
         message: "birth_date is required for senior citizen requests.",
+      });
+    } else if (calculateAge(data.birth_date) < 65) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["birth_date"],
+        message: "birth_date must indicate an age of at least 65 years for senior citizen requests.",
       });
     }
 
