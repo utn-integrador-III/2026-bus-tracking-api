@@ -1,2 +1,14 @@
-node_modules
+.claude
 .env
+.env.*
+.mcp.json
+node_modules
+coverage
+dist
+build
+*.log
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+firebase-service-account.json

@@ -1,5 +1,48 @@
 {
+  "name": "2026-bus-tracking-api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "prepare": "husky",
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "strip:dry": "node tools/strip-comments.mjs --dry-run",
+    "strip:apply": "node tools/strip-comments.mjs",
+    "env:check": "node scripts/check-env-drift.mjs",
+    "test": "jest --passWithNoTests",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage --passWithNoTests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/utn-integrador-III/2026-bus-tracking-api.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/utn-integrador-III/2026-bus-tracking-api/issues"
+  },
+  "homepage": "https://github.com/utn-integrador-III/2026-bus-tracking-api#readme",
   "dependencies": {
-    "express": "^5.2.1"
+    "@supabase/supabase-js": "^2.108.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "swagger-ui-express": "^5.0.1",
+    "ws": "^8.21.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.16.0",
+    "eslint": "^9.16.0",
+    "globals": "^15.13.0",
+    "husky": "^9.1.7",
+    "jest": "^30.4.2",
+    "supertest": "^7.2.2"
   }
 }
