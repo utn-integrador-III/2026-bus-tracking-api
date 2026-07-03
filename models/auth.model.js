@@ -9,9 +9,26 @@ const phone = z.string().trim().min(8).max(30).optional();
 const oauthProvider = z.enum(["google", "apple", "github"]);
 const seniorDocumentContentType = z.enum(["image/jpeg", "image/png", "image/webp"]);
 
-const birthDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
-  message: "birth_date must use YYYY-MM-DD format.",
-});
+const birthDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, {
+    message: "birth_date must use YYYY-MM-DD format.",
+  })
+  .refine(
+    (value) => {
+      const [year, month, day] = value.split("-").map(Number);
+      const date = new Date(Date.UTC(year, month - 1, day));
+
+      return (
+        date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month - 1 &&
+        date.getUTCDate() === day
+      );
+    },
+    {
+      message: "birth_date must be a real calendar date.",
+    },
+  );
 
 const registerPassengerSchema = z
   .object({
