@@ -2,6 +2,8 @@
 
 const express = require("express");
 const validate = require("../middleware/validate");
+const requireAuth = require("../middleware/requireAuth");
+const requireRole = require("../middleware/requireRole");
 const controller = require("../controllers/seniorVerificationController");
 const {
   idParamSchema,
@@ -10,8 +12,11 @@ const {
   rejectSeniorRequestSchema,
 } = require("../models/seniorVerification.model");
 const { ERROR_CODES } = require("../constants/errorCodes");
+const { ROLES } = require("../constants/roles");
 
 const router = express.Router();
+
+router.use(requireAuth, requireRole(ROLES.ADMIN));
 
 router.get(
   "/",
