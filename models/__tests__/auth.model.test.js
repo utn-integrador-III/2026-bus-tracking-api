@@ -164,6 +164,18 @@ describe("registerPassengerSchema", () => {
     expect(result.data.name).toBe("Carlos Marin");
     expect(result.data.email).toBe("carlos@example.com");
   });
+
+  test("normalizes email to lowercase for case-insensitive uniqueness", () => {
+    const result = registerPassengerSchema.safeParse({
+      name: "Carlos Marin",
+      email: "FOO@X.COM",
+      password: "Password123",
+      phone: "88888888",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data.email).toBe("foo@x.com");
+  });
 });
 
 describe("loginSchema", () => {

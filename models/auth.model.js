@@ -3,7 +3,7 @@
 const { z } = require("zod");
 
 const name = z.string().trim().min(1).max(100);
-const email = z.string().trim().email().max(150);
+const email = z.string().trim().toLowerCase().email().max(150);
 const password = z.string().min(8).max(100);
 const phone = z.string().trim().min(8).max(30).optional();
 const oauthProvider = z.enum(["google", "apple", "github"]);
