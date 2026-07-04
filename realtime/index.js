@@ -74,8 +74,8 @@ class TripRealtimeManager {
       payload: {
         latitude: location.latitude,
         longitude: location.longitude,
-        speed: location.speed || null,
-        heading: location.heading || null,
+        speed: location.speed ?? null,
+        heading: location.heading ?? null,
         recorded_at: location.recorded_at || new Date().toISOString(),
       },
     });
