@@ -15,6 +15,9 @@ const { reportLocationSchema } = require("../../../models/driverTrip.model");
 const tripsRepository = require("../../../repositories/tripsRepository");
 const locationRepository = require("../../../repositories/locationRepository");
 const realtimeManager = require("../../../realtime/index");
+const routesRepository = require("../../../repositories/routesRepository");
+const googleRoutesService = require("../../../services/googleRoutes.service");
+const { PassengerTrackingService, SupabaseTripWatchRepository } = require("../passenger-tracking/index");
 
 const ACTIVE_STATUSES = [TRIP_STATUS.IN_PROGRESS];
 const STARTABLE_STATUSES = [TRIP_STATUS.SCHEDULED, TRIP_STATUS.PENDING];
@@ -24,6 +27,9 @@ class DriverTripService {
     this.tripRepository = dependencies.tripRepository || tripsRepository;
     this.locationRepository = dependencies.locationRepository || locationRepository;
     this.realtimeManager = dependencies.realtimeManager || realtimeManager;
+    this.routesRepository = dependencies.routesRepository || routesRepository;
+    this.googleRoutesService = dependencies.googleRoutesService || googleRoutesService;
+    this.trackingService = dependencies.trackingService;
   }
 
   _notFound() {
@@ -144,6 +150,10 @@ class DriverTripService {
 
     await this.realtimeManager.broadcastLocation(tripId, location);
 
+    if (this.trackingService) {
+      await this.trackingService.checkProximity(tripId, data.latitude, data.longitude);
+    }
+
     return location;
   }
 }
@@ -204,6 +214,12 @@ function createDriverTripModule(dependencies = {}) {
       tripRepository: dependencies.tripRepository,
       locationRepository: dependencies.locationRepository,
       realtimeManager: dependencies.realtimeManager,
+      routesRepository: dependencies.routesRepository,
+      googleRoutesService: dependencies.googleRoutesService,
+      trackingService: dependencies.trackingService || new PassengerTrackingService({
+        watchRepository: new SupabaseTripWatchRepository(),
+        realtimeManager: dependencies.realtimeManager || realtimeManager,
+      }),
     });
   const driverTripController =
     dependencies.driverTripController || new DriverTripController(driverTripService);
