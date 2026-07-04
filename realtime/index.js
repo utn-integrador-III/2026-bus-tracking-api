@@ -81,6 +81,38 @@ class TripRealtimeManager {
     });
   }
 
+  async emitUserAlert(userId, event, payload) {
+    if (!env.enableSupabaseRealtime) {
+      return;
+    }
+
+    const channelName = `passenger:${userId}:alerts`;
+
+    let channel = this.channels.get(channelName);
+    let isTemp = false;
+
+    if (!channel) {
+      channel = this._getClient().channel(channelName);
+      isTemp = true;
+      await new Promise((resolve, reject) => {
+        channel.subscribe((status, err) => {
+          if (status === "SUBSCRIBED") resolve();
+          else reject(err || new Error(`Subscribe failed: ${status}`));
+        });
+      }).catch(err => console.error("Error subscribing to temp channel:", err.message));
+    }
+
+    await channel.send({
+      type: "broadcast",
+      event: event,
+      payload: payload,
+    });
+
+    if (isTemp) {
+      await channel.unsubscribe();
+    }
+  }
+
   async stopAllTracking() {
     const entries = Array.from(this.channels.entries());
     for (const [tripId] of entries) {
