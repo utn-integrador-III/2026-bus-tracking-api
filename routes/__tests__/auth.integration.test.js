@@ -279,7 +279,9 @@ describe("auth routes", () => {
       expect(authService.loginDriver).toHaveBeenCalledWith({
         email: "driver@example.com",
         password: "Password123",
-      });
+      },
+      {ipAddress: "::ffff:127.0.0.1", userAgent: null}
+    );
     });
 
     test("returns 400 when driver login payload is invalid", async () => {
