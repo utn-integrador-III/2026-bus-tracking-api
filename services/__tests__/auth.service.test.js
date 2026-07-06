@@ -908,6 +908,16 @@ describe("auth.service", () => {
         validUserId,
         "Driver",
       );
+
+      expect(authAuditRepository.createLoginAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user_id: validUserId,
+          email: "passenger@example.com",
+          auth_strategy: "password",
+          was_successful: false,
+          failure_code: ERROR_CODES.FORBIDDEN_ROLE,
+        }),
+      );
     });
   });
 });

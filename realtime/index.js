@@ -58,7 +58,7 @@ class TripRealtimeManager {
     this.channels.delete(tripId);
   }
 
-  async broadcastLocation(tripId, location) {
+  async broadcastLocation(tripId, location, eta = null) {
     if (!env.enableSupabaseRealtime) {
       return;
     }
@@ -74,9 +74,10 @@ class TripRealtimeManager {
       payload: {
         latitude: location.latitude,
         longitude: location.longitude,
-        speed: location.speed || null,
-        heading: location.heading || null,
+        speed: location.speed ?? null,
+        heading: location.heading ?? null,
         recorded_at: location.recorded_at || new Date().toISOString(),
+        eta,
       },
     });
   }

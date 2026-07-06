@@ -18,9 +18,15 @@ const realtimeManager = require("../../../realtime/index");
 const routesRepository = require("../../../repositories/routesRepository");
 const googleRoutesService = require("../../../services/googleRoutes.service");
 const { PassengerTrackingService, SupabaseTripWatchRepository } = require("../passenger-tracking/index");
+const { env } = require("../../../config/env");
 
 const ACTIVE_STATUSES = [TRIP_STATUS.IN_PROGRESS];
 const STARTABLE_STATUSES = [TRIP_STATUS.SCHEDULED, TRIP_STATUS.PENDING];
+const ASSIGNED_STATUSES = [
+  TRIP_STATUS.SCHEDULED,
+  TRIP_STATUS.PENDING,
+  TRIP_STATUS.IN_PROGRESS,
+];
 
 class DriverTripService {
   constructor(dependencies = {}) {
@@ -129,6 +135,10 @@ class DriverTripService {
     return trips.length > 0 ? trips[0] : null;
   }
 
+  async listAssignedTrips(driverId) {
+    return this.tripRepository.findTripsByDriverId(driverId, ASSIGNED_STATUSES);
+  }
+
   async reportLocation(driverId, tripId, data) {
     const trip = await this._getTripOrFail(tripId);
     this._assertDriverOwnership(trip, driverId);
@@ -143,12 +153,35 @@ class DriverTripService {
       trip_id: tripId,
       latitude: data.latitude,
       longitude: data.longitude,
-      speed: data.speed || null,
-      heading: data.heading || null,
+      speed: data.speed ?? null,
+      heading: data.heading ?? null,
       recorded_at: data.recorded_at || new Date().toISOString(),
     });
 
-    await this.realtimeManager.broadcastLocation(tripId, location);
+    let eta = null;
+    if (env.enableGoogleRoutes) {
+      try {
+        const route = await this.routesRepository.getRouteById(trip.route_id);
+        if (route && route.geometry_geojson) {
+          const coordinates =
+            route.geometry_geojson.type === "Feature"
+              ? route.geometry_geojson.geometry.coordinates
+              : route.geometry_geojson.coordinates;
+          if (coordinates && coordinates.length > 0) {
+            const dest = coordinates[coordinates.length - 1];
+            const routeData = await this.googleRoutesService.computeRoute({
+              origin: { latitude: data.latitude, longitude: data.longitude },
+              destination: { latitude: dest[1], longitude: dest[0] },
+            });
+            eta = routeData.duration;
+          }
+        }
+      } catch (err) {
+        console.error("Error computing ETA:", err.message);
+      }
+    }
+
+    await this.realtimeManager.broadcastLocation(tripId, location, eta);
 
     if (this.trackingService) {
       await this.trackingService.checkProximity(tripId, data.latitude, data.longitude);
@@ -165,6 +198,7 @@ class DriverTripController {
     this.completeTrip = asyncHandler(this.completeTrip.bind(this));
     this.cancelTrip = asyncHandler(this.cancelTrip.bind(this));
     this.getActiveTrip = asyncHandler(this.getActiveTrip.bind(this));
+    this.listAssignedTrips = asyncHandler(this.listAssignedTrips.bind(this));
     this.reportLocation = asyncHandler(this.reportLocation.bind(this));
   }
 
@@ -194,6 +228,12 @@ class DriverTripController {
     const driverId = this._extractDriverId(req);
     const trip = await this.service.getActiveTrip(driverId);
     res.status(HTTP_STATUS.OK).json(trip);
+  }
+
+  async listAssignedTrips(req, res) {
+    const driverId = this._extractDriverId(req);
+    const trips = await this.service.listAssignedTrips(driverId);
+    res.status(HTTP_STATUS.OK).json(trips);
   }
 
   async reportLocation(req, res) {
@@ -236,6 +276,8 @@ function createDriverTripsRouter(dependencies = {}) {
   const validationCode = ERROR_CODES.TRIP_VALIDATION_FAILED;
 
   router.use(requireAuth, requireRole(ROLES.DRIVER));
+
+  router.get("/", driverTripController.listAssignedTrips);
 
   router.get("/active", driverTripController.getActiveTrip);
 

@@ -8,12 +8,22 @@ jest.mock("../../services/driver.service", () => ({
   deactivateDriver: jest.fn(),
 }));
 
+jest.mock("../../database/supabaseClient", () => ({
+  verifyAccessToken: jest.fn(),
+  getServiceClient: jest.fn(),
+  getAnonClient: jest.fn(),
+}));
+
 const request = require("supertest");
 const buildApp = require("../../app");
 const driverService = require("../../services/driver.service");
+const { verifyAccessToken } = require("../../database/supabaseClient");
 
 const app = buildApp();
 const validUserId = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+const AUTH_HEADER = "Bearer admin-token";
+const adminUser = { id: "admin-user-id", app_metadata: { role: "Admin" } };
+const passengerUser = { id: "passenger-user-id", app_metadata: { role: "Passenger" } };
 
 const driverResponse = {
   user_id: validUserId,
@@ -28,12 +38,15 @@ const driverResponse = {
 describe("admin driver routes", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    verifyAccessToken.mockResolvedValue(adminUser);
   });
 
   test("GET /api/admin/drivers returns driver list", async () => {
     driverService.listDrivers.mockResolvedValue([driverResponse]);
 
-    const response = await request(app).get("/api/admin/drivers");
+    const response = await request(app)
+      .get("/api/admin/drivers")
+      .set("Authorization", AUTH_HEADER);
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual([driverResponse]);
@@ -44,6 +57,7 @@ describe("admin driver routes", () => {
 
     const response = await request(app)
       .post("/api/admin/drivers")
+      .set("Authorization", AUTH_HEADER)
       .send({
         name: "Carlos Gomez",
         email: "driver@example.com",
@@ -58,7 +72,9 @@ describe("admin driver routes", () => {
   test("GET /api/admin/drivers/:id returns one driver", async () => {
     driverService.getDriverById.mockResolvedValue(driverResponse);
 
-    const response = await request(app).get(`/api/admin/drivers/${validUserId}`);
+    const response = await request(app)
+      .get(`/api/admin/drivers/${validUserId}`)
+      .set("Authorization", AUTH_HEADER);
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual(driverResponse);
@@ -73,6 +89,7 @@ describe("admin driver routes", () => {
 
     const response = await request(app)
       .put(`/api/admin/drivers/${validUserId}`)
+      .set("Authorization", AUTH_HEADER)
       .send({
         name: "Updated Driver",
         license_number: "B2-999999",
@@ -89,7 +106,9 @@ describe("admin driver routes", () => {
       isActive: false,
     });
 
-    const response = await request(app).delete(`/api/admin/drivers/${validUserId}`);
+    const response = await request(app)
+      .delete(`/api/admin/drivers/${validUserId}`)
+      .set("Authorization", AUTH_HEADER);
 
     expect(response.status).toBe(200);
     expect(response.body.isActive).toBe(false);
@@ -98,6 +117,7 @@ describe("admin driver routes", () => {
   test("POST /api/admin/drivers rejects invalid payload", async () => {
     const response = await request(app)
       .post("/api/admin/drivers")
+      .set("Authorization", AUTH_HEADER)
       .send({
         name: "Carlos Gomez",
         email: "invalid-email",
@@ -107,5 +127,23 @@ describe("admin driver routes", () => {
 
     expect(response.status).toBe(400);
     expect(driverService.createDriver).not.toHaveBeenCalled();
+  });
+
+  test("GET /api/admin/drivers rejects unauthenticated requests", async () => {
+    const response = await request(app).get("/api/admin/drivers");
+
+    expect(response.status).toBe(401);
+    expect(driverService.listDrivers).not.toHaveBeenCalled();
+  });
+
+  test("GET /api/admin/drivers rejects non-admin roles", async () => {
+    verifyAccessToken.mockResolvedValue(passengerUser);
+
+    const response = await request(app)
+      .get("/api/admin/drivers")
+      .set("Authorization", "Bearer passenger-token");
+
+    expect(response.status).toBe(403);
+    expect(driverService.listDrivers).not.toHaveBeenCalled();
   });
 });
