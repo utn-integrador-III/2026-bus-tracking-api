@@ -9,6 +9,17 @@ const phone = z.string().trim().min(8).max(30).optional();
 const oauthProvider = z.enum(["google", "apple", "github"]);
 const seniorDocumentContentType = z.enum(["image/jpeg", "image/png", "image/webp"]);
 
+function isRealCalendarDate(dateStr) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
 function isFutureDate(dateStr) {
   const date = new Date(dateStr + "T00:00:00Z");
   const today = new Date();
@@ -30,6 +41,7 @@ function calculateAge(dateStr) {
 const birthDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "birth_date must use YYYY-MM-DD format." })
+  .refine((val) => isRealCalendarDate(val), { message: "birth_date must be a real calendar date." })
   .refine((val) => !isFutureDate(val), { message: "birth_date cannot be in the future." });
 
 const registerPassengerSchema = z

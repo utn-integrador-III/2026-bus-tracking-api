@@ -165,6 +165,32 @@ describe("registerPassengerSchema", () => {
     expect(result.data.email).toBe("carlos@example.com");
   });
 
+  test("rejects a senior request with a non-existent calendar date", () => {
+    const result = registerPassengerSchema.safeParse({
+      name: "Senior Passenger",
+      email: "senior.passenger@example.com",
+      password: "Password123",
+      is_senior_request: true,
+      birth_date: "1950-13-40",
+      document_image_path: "passengers/senior.passenger@example.com/cedula.jpg",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test("accepts a senior request with a real birth date", () => {
+    const result = registerPassengerSchema.safeParse({
+      name: "Senior Passenger",
+      email: "senior.passenger@example.com",
+      password: "Password123",
+      is_senior_request: true,
+      birth_date: "1960-05-10",
+      document_image_path: "passengers/senior.passenger@example.com/cedula.jpg",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   test("normalizes email to lowercase for case-insensitive uniqueness", () => {
     const result = registerPassengerSchema.safeParse({
       name: "Carlos Marin",
