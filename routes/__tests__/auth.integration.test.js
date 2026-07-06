@@ -151,6 +151,22 @@ describe("auth routes", () => {
       expect(response.status).toBe(400);
       expect(authService.registerPassenger).not.toHaveBeenCalled();
     });
+
+    test("returns 400 when senior registration has a future birth_date", async () => {
+      const response = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Senior Passenger",
+          email: "senior@example.com",
+          password: "Password123",
+          is_senior_request: true,
+          birth_date: "2035-01-01",
+          document_image_path: "passengers/senior/cedula.jpg",
+        });
+
+      expect(response.status).toBe(400);
+      expect(authService.registerPassenger).not.toHaveBeenCalled();
+    });
   });
 
   describe("POST /api/auth/login", () => {
@@ -279,7 +295,9 @@ describe("auth routes", () => {
       expect(authService.loginDriver).toHaveBeenCalledWith({
         email: "driver@example.com",
         password: "Password123",
-      });
+      },
+      {ipAddress: "::ffff:127.0.0.1", userAgent: null}
+    );
     });
 
     test("returns 400 when driver login payload is invalid", async () => {

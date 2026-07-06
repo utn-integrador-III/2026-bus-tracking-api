@@ -15,6 +15,9 @@ const { reportLocationSchema } = require("../../../models/driverTrip.model");
 const tripsRepository = require("../../../repositories/tripsRepository");
 const locationRepository = require("../../../repositories/locationRepository");
 const realtimeManager = require("../../../realtime/index");
+const routesRepository = require("../../../repositories/routesRepository");
+const googleRoutesService = require("../../../services/googleRoutes.service");
+const { env } = require("../../../config/env");
 
 const ACTIVE_STATUSES = [TRIP_STATUS.IN_PROGRESS];
 const STARTABLE_STATUSES = [TRIP_STATUS.SCHEDULED, TRIP_STATUS.PENDING];
@@ -29,6 +32,8 @@ class DriverTripService {
     this.tripRepository = dependencies.tripRepository || tripsRepository;
     this.locationRepository = dependencies.locationRepository || locationRepository;
     this.realtimeManager = dependencies.realtimeManager || realtimeManager;
+    this.routesRepository = dependencies.routesRepository || routesRepository;
+    this.googleRoutesService = dependencies.googleRoutesService || googleRoutesService;
   }
 
   _notFound() {
@@ -146,12 +151,35 @@ class DriverTripService {
       trip_id: tripId,
       latitude: data.latitude,
       longitude: data.longitude,
-      speed: data.speed || null,
-      heading: data.heading || null,
+      speed: data.speed ?? null,
+      heading: data.heading ?? null,
       recorded_at: data.recorded_at || new Date().toISOString(),
     });
 
-    await this.realtimeManager.broadcastLocation(tripId, location);
+    let eta = null;
+    if (env.enableGoogleRoutes) {
+      try {
+        const route = await this.routesRepository.getRouteById(trip.route_id);
+        if (route && route.geometry_geojson) {
+          const coordinates =
+            route.geometry_geojson.type === "Feature"
+              ? route.geometry_geojson.geometry.coordinates
+              : route.geometry_geojson.coordinates;
+          if (coordinates && coordinates.length > 0) {
+            const dest = coordinates[coordinates.length - 1];
+            const routeData = await this.googleRoutesService.computeRoute({
+              origin: { latitude: data.latitude, longitude: data.longitude },
+              destination: { latitude: dest[1], longitude: dest[0] },
+            });
+            eta = routeData.duration;
+          }
+        }
+      } catch (err) {
+        console.error("Error computing ETA:", err.message);
+      }
+    }
+
+    await this.realtimeManager.broadcastLocation(tripId, location, eta);
 
     return location;
   }
@@ -220,6 +248,8 @@ function createDriverTripModule(dependencies = {}) {
       tripRepository: dependencies.tripRepository,
       locationRepository: dependencies.locationRepository,
       realtimeManager: dependencies.realtimeManager,
+      routesRepository: dependencies.routesRepository,
+      googleRoutesService: dependencies.googleRoutesService,
     });
   const driverTripController =
     dependencies.driverTripController || new DriverTripController(driverTripService);

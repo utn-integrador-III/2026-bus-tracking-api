@@ -129,7 +129,7 @@ authService.registerPassenger = async function registerPassenger(payload) {
   };
 };
 
-authService.loginDriver = async function loginDriver(payload, context) {
+authService.loginDriver = async function loginDriver(payload, context = {}) {
   const result = await authService.loginUser(payload, context);
 
   const driverRole = await userRoleRepository.findRoleByUserIdAndRole(
@@ -138,6 +138,17 @@ authService.loginDriver = async function loginDriver(payload, context) {
   );
 
   if (!driverRole) {
+    await authService.writeLoginAudit({
+      user_id: result.user.id,
+      email: result.user.email,
+      role: result.user.role,
+      auth_strategy: "password",
+      oauth_provider: null,
+      was_successful: false,
+      failure_code: ERROR_CODES.FORBIDDEN_ROLE,
+      ip_address: context.ipAddress || null,
+      user_agent: context.userAgent || null,
+    });
     throw new AppError(
       HTTP_STATUS.FORBIDDEN,
       ERROR_CODES.FORBIDDEN_ROLE,
