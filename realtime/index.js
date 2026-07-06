@@ -58,7 +58,7 @@ class TripRealtimeManager {
     this.channels.delete(tripId);
   }
 
-  async broadcastLocation(tripId, location) {
+  async broadcastLocation(tripId, location, eta = null) {
     if (!env.enableSupabaseRealtime) {
       return;
     }
@@ -74,11 +74,44 @@ class TripRealtimeManager {
       payload: {
         latitude: location.latitude,
         longitude: location.longitude,
-        speed: location.speed || null,
-        heading: location.heading || null,
+        speed: location.speed ?? null,
+        heading: location.heading ?? null,
         recorded_at: location.recorded_at || new Date().toISOString(),
+        eta,
       },
     });
+  }
+
+  async emitUserAlert(userId, event, payload) {
+    if (!env.enableSupabaseRealtime) {
+      return;
+    }
+
+    const channelName = `passenger:${userId}:alerts`;
+
+    let channel = this.channels.get(channelName);
+    let isTemp = false;
+
+    if (!channel) {
+      channel = this._getClient().channel(channelName);
+      isTemp = true;
+      await new Promise((resolve, reject) => {
+        channel.subscribe((status, err) => {
+          if (status === "SUBSCRIBED") resolve();
+          else reject(err || new Error(`Subscribe failed: ${status}`));
+        });
+      }).catch(err => console.error("Error subscribing to temp channel:", err.message));
+    }
+
+    await channel.send({
+      type: "broadcast",
+      event: event,
+      payload: payload,
+    });
+
+    if (isTemp) {
+      await channel.unsubscribe();
+    }
   }
 
   async stopAllTracking() {

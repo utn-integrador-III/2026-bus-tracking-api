@@ -8,7 +8,7 @@ const { HTTP_STATUS } = require("../constants/httpStatus");
 const authController = new AuthController(authService);
 
 authController.loginDriver = asyncHandler(async function loginDriver(req, res) {
-  const result = await authService.loginDriver(req.valid.body);
+  const result = await authService.loginDriver(req.valid.body, authController.buildRequestContext(req));
 
   res.status(HTTP_STATUS.OK).json(result);
 });
