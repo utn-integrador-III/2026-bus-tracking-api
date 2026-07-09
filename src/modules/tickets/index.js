@@ -8,7 +8,9 @@ const AppError = require("../../../utils/AppError");
 const asyncHandler = require("../../../utils/asyncHandler");
 const validate = require("../../../middleware/validate");
 const requireAuth = require("../../../middleware/requireAuth");
-const { checkoutTicketSchema } = require("../../../models/ticket.model");
+const requireRole = require("../../../middleware/requireRole");
+const { ROLES } = require("../../../constants/roles");
+const { checkoutTicketSchema, scanTicketSchema } = require("../../../models/ticket.model");
 const ticketsRepository = require("../../../repositories/ticketsRepository");
 
 const CHECKOUT_DELAY_MS = 1500;
@@ -57,6 +59,33 @@ function generateSecureQrPayload(ticketId, passengerId, tripId, qrToken) {
 class TicketService {
   constructor(dependencies = {}) {
     this.ticketRepository = dependencies.ticketRepository || ticketsRepository;
+    this.driverTripService = dependencies.driverTripService || null;
+  }
+
+  async scanTicket(driverId, ticketId) {
+    if (!this.driverTripService) {
+      throw new AppError(
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        ERROR_CODES.INTERNAL_ERROR,
+        "Driver trip service is not available.",
+      );
+    }
+
+    const activeTrip = await this.driverTripService.getActiveTrip(driverId);
+
+    if (!activeTrip) {
+      throw new AppError(
+        HTTP_STATUS.FORBIDDEN,
+        ERROR_CODES.FORBIDDEN_ROLE,
+        "Driver has no active trip.",
+      );
+    }
+
+    return this.ticketRepository.scanTicketAtomic(
+      ticketId,
+      driverId,
+      activeTrip.id,
+    );
   }
 
   async checkout(passengerId, payload) {
@@ -96,6 +125,26 @@ class TicketController {
     this.service = service;
     this.checkout = asyncHandler(this.checkout.bind(this));
     this.listMine = asyncHandler(this.listMine.bind(this));
+    this.scan = asyncHandler(this.scan.bind(this));
+  }
+
+  async scan(req, res) {
+    const driverId = req.auth.userId;
+
+    if (!driverId) {
+      throw new AppError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_CODES.UNAUTHORIZED,
+        "Authenticated driver is required.",
+      );
+    }
+
+    const ticket = await this.service.scanTicket(
+      driverId,
+      req.valid.body.ticket_id,
+    );
+
+    res.status(HTTP_STATUS.OK).json(ticket);
   }
 
   async checkout(req, res) {
@@ -136,6 +185,7 @@ function createTicketModule(dependencies = {}) {
     dependencies.ticketService ||
     new TicketService({
       ticketRepository: dependencies.ticketRepository,
+      driverTripService: dependencies.driverTripService,
     });
 
   const ticketController =
@@ -159,6 +209,13 @@ function createTicketsRouter(dependencies = {}) {
     "/checkout",
     validate({ body: checkoutTicketSchema }),
     ticketController.checkout,
+  );
+
+  router.post(
+    "/scan",
+    requireRole(ROLES.DRIVER),
+    validate({ body: scanTicketSchema }, ERROR_CODES.TICKET_SCAN_FAILED),
+    ticketController.scan,
   );
 
   return router;
