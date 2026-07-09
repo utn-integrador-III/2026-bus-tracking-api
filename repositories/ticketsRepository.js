@@ -65,6 +65,40 @@ function mapTicketError(error) {
   );
 }
 
+function mapScanRpcError(error) {
+  const message = error?.message || error?.details || "";
+
+  if (message.includes("TICKET_NOT_FOUND")) {
+    return new AppError(
+      HTTP_STATUS.NOT_FOUND,
+      "TICKET_NOT_FOUND",
+      "El ticket especificado no existe.",
+    );
+  }
+
+  if (message.includes("TICKET_TRIP_MISMATCH")) {
+    return new AppError(
+      HTTP_STATUS.CONFLICT,
+      "TICKET_TRIP_MISMATCH",
+      "El ticket no corresponde al viaje activo del conductor.",
+    );
+  }
+
+  if (message.includes("TICKET_ALREADY_SCANNED")) {
+    return new AppError(
+      HTTP_STATUS.CONFLICT,
+      "TICKET_ALREADY_SCANNED",
+      "El ticket ya fue escaneado anteriormente.",
+    );
+  }
+
+  return new AppError(
+    HTTP_STATUS.INTERNAL_SERVER_ERROR,
+    "TICKET_SCAN_FAILED",
+    message || "Error al escanear el ticket.",
+  );
+}
+
 class TicketsRepository {
   async createTicket(payload) {
     const client = getSupabaseClient();
@@ -113,6 +147,24 @@ class TicketsRepository {
 
     if (error) {
       throw mapTicketError(error);
+    }
+
+    return data;
+  }
+
+  async scanTicketAtomic(ticketId, driverId, activeTripId) {
+    const client = getSupabaseClient();
+
+    const { data, error } = await client
+      .rpc("scan_ticket", {
+        p_ticket_id: ticketId,
+        p_driver_id: driverId,
+        p_active_trip_id: activeTripId,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw mapScanRpcError(error);
     }
 
     return data;
