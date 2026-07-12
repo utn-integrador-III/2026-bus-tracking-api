@@ -11,34 +11,10 @@ const COLUMNS =
 
 let supabase = null;
 
+const { getServiceClient } = require("../database/supabaseClient");
+
 function getSupabaseClient() {
-  if (supabase) {
-    return supabase;
-  }
-
-  const supabaseUrl = env.supabaseUrl;
-
-  const supabaseKey =
-    env.supabaseServiceRoleKey ||
-    env.supabaseServiceKey ||
-    env.supabaseAnonKey;
-
-  if (!supabaseUrl || !supabaseKey) {
-    throw new AppError(
-      HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      "SUPABASE_CLIENT_NOT_CONFIGURED",
-      "Supabase URL or key is not configured for ticketsRepository.",
-    );
-  }
-
-  supabase = createClient(supabaseUrl, supabaseKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
-
-  return supabase;
+  return getServiceClient();
 }
 
 function mapTicketError(error) {
