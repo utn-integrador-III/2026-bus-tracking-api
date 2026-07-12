@@ -1,7 +1,22 @@
 "use strict";
 
-const { createPassengerIncidentsModule } = require("../src/modules/passenger-incidents");
+const incidentsRepository = require("../repositories/incidentsRepository");
 
-const { passengerIncidentService } = createPassengerIncidentsModule();
+async function createPassengerIncident(payload) {
+  return incidentsRepository.createPassengerIncident({
+    trip_id: payload.trip_id,
+    type: payload.type,
+    description: payload.description || null,
+    latitude: payload.latitude,
+    longitude: payload.longitude,
+  });
+}
 
-module.exports = passengerIncidentService;
+async function listPassengerIncidents(query) {
+  return incidentsRepository.findIncidentsByTripId(query.trip_id);
+}
+
+module.exports = {
+  createPassengerIncident,
+  listPassengerIncidents,
+};
