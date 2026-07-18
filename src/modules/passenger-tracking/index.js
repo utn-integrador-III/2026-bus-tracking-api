@@ -35,12 +35,8 @@ class PassengerTrackingController {
   }
 
   async previewActiveTrips(req, res) {
-    // Basic preview: we return the active trips. 
-    // In a real scenario with full DB joins, we'd include route geometry and stops in a single query.
-    // We'll simulate the response shape for the frontend.
     const activeTrips = await tripsRepository.listTrips({ statuses: CONSUMER_VISIBLE_STATUSES });
-    
-    // As an optimization, fetch route info for each active trip (or frontend can do this)
+
     const tripsWithRoutes = await Promise.all(activeTrips.map(async (trip) => {
       let route = null;
       if (trip.route_id) {
