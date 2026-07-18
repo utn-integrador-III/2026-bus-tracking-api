@@ -3,15 +3,57 @@
 const { z } = require("zod");
 
 const name = z.string().trim().min(1).max(100);
-const email = z.string().trim().email().max(150);
+const email = z.string().trim().toLowerCase().email().max(150);
 const password = z.string().min(8).max(100);
 const phone = z.string().trim().min(8).max(30).optional();
 const oauthProvider = z.enum(["google", "apple", "github"]);
 const seniorDocumentContentType = z.enum(["image/jpeg", "image/png", "image/webp"]);
 
-const birthDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
-  message: "birth_date must use YYYY-MM-DD format.",
-});
+function isRealCalendarDate(dateStr) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+function isFutureDate(dateStr) {
+  const date = new Date(dateStr + "T00:00:00Z");
+  const today = new Date();
+  const todayUTC = new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
+  );
+
+  return date > todayUTC;
+}
+
+function calculateAge(dateStr) {
+  const birth = new Date(dateStr + "T00:00:00Z");
+  const today = new Date();
+  let age = today.getUTCFullYear() - birth.getUTCFullYear();
+  const monthDiff = today.getUTCMonth() - birth.getUTCMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getUTCDate() < birth.getUTCDate())) {
+    age--;
+  }
+
+  return age;
+}
+
+const birthDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, {
+    message: "birth_date must use YYYY-MM-DD format.",
+  })
+  .refine(isRealCalendarDate, {
+    message: "birth_date must be a real calendar date.",
+  })
+  .refine((value) => !isFutureDate(value), {
+    message: "birth_date cannot be in the future.",
+  });
 
 const registerPassengerSchema = z
   .object({
@@ -35,6 +77,12 @@ const registerPassengerSchema = z
         code: z.ZodIssueCode.custom,
         path: ["birth_date"],
         message: "birth_date is required for senior citizen requests.",
+      });
+    } else if (calculateAge(data.birth_date) < 65) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["birth_date"],
+        message: "birth_date must indicate an age of at least 65 years for senior citizen requests.",
       });
     }
 
