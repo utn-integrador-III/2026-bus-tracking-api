@@ -44,7 +44,11 @@ describe("TicketService", () => {
       ),
     };
 
-    const service = new TicketService({ ticketRepository });
+    const passengerRepository = {
+      findPassengerById: jest.fn().mockResolvedValue({ is_senior: false }),
+    };
+
+    const service = new TicketService({ ticketRepository, passengerRepository });
 
     const checkoutPromise = service.checkout(PASSENGER_ID, {
       trip_id: TRIP_ID,
@@ -134,7 +138,11 @@ describe("TicketService", () => {
       ),
     };
 
-    const service = new TicketService({ ticketRepository });
+    const passengerRepository = {
+      findPassengerById: jest.fn().mockResolvedValue({ is_senior: false }),
+    };
+
+    const service = new TicketService({ ticketRepository, passengerRepository });
 
     const firstCheckoutPromise = service.checkout(PASSENGER_ID, {
       trip_id: TRIP_ID,
@@ -158,5 +166,52 @@ describe("TicketService", () => {
     expect(firstTicket.id).not.toBe(secondTicket.id);
     expect(firstTicket.trip_id).toBe(secondTicket.trip_id);
     expect(firstTicket.passenger_id).toBe(secondTicket.passenger_id);
+  });
+
+  test("bypasses payment delay and sets Senior_Exemption for senior passengers", async () => {
+    const passengerRepository = {
+      findPassengerById: jest.fn().mockResolvedValue({ is_senior: true }),
+    };
+
+    const draftTicket = {
+      id: TICKET_ID,
+      passenger_id: PASSENGER_ID,
+      trip_id: TRIP_ID,
+      status: "Generated",
+      payment_type: "Senior_Exemption",
+      qr_payload: "pending",
+      qr_token: null,
+      generated_at: "2026-07-01T00:00:00.000Z",
+      created_at: "2026-07-01T00:00:00.000Z",
+    };
+
+    const ticketRepository = {
+      createTicket: jest.fn().mockResolvedValue(draftTicket),
+      updateTicketQrPayload: jest.fn().mockImplementation(
+        (ticketId, qrPayload, qrToken) =>
+          Promise.resolve({
+            ...draftTicket,
+            id: ticketId,
+            qr_payload: qrPayload,
+            qr_token: qrToken,
+          }),
+      ),
+    };
+
+    const service = new TicketService({ ticketRepository, passengerRepository });
+
+    const ticket = await service.checkout(PASSENGER_ID, {
+      trip_id: TRIP_ID,
+    });
+
+    expect(ticketRepository.createTicket).toHaveBeenCalledWith({
+      passenger_id: PASSENGER_ID,
+      trip_id: TRIP_ID,
+      status: "Generated",
+      payment_type: "Senior_Exemption",
+      qr_payload: "pending",
+    });
+
+    expect(ticket.payment_type).toBe("Senior_Exemption");
   });
 });

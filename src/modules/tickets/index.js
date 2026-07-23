@@ -12,10 +12,12 @@ const requireRole = require("../../../middleware/requireRole");
 const { ROLES } = require("../../../constants/roles");
 const { checkoutTicketSchema, scanTicketSchema } = require("../../../models/ticket.model");
 const ticketsRepository = require("../../../repositories/ticketsRepository");
+const passengerRepository = require("../../../repositories/passengerRepository");
 
 const CHECKOUT_DELAY_MS = 1500;
 const TICKET_STATUS_GENERATED = "Generated";
 const TICKET_PAYMENT_TYPE_MOCK = "Mock";
+const TICKET_PAYMENT_TYPE_SENIOR = "Senior_Exemption";
 
 function wait(milliseconds) {
   return new Promise((resolve) => {
@@ -60,6 +62,7 @@ class TicketService {
   constructor(dependencies = {}) {
     this.ticketRepository = dependencies.ticketRepository || ticketsRepository;
     this.driverTripService = dependencies.driverTripService || null;
+    this.passengerRepository = dependencies.passengerRepository || passengerRepository;
   }
 
   async scanTicket(driverId, ticketId) {
@@ -89,13 +92,18 @@ class TicketService {
   }
 
   async checkout(passengerId, payload) {
-    await wait(CHECKOUT_DELAY_MS);
+    const passenger = await this.passengerRepository.findPassengerById(passengerId);
+    const isSenior = passenger && passenger.is_senior === true;
+
+    if (!isSenior) {
+      await wait(CHECKOUT_DELAY_MS);
+    }
 
     const draftTicket = await this.ticketRepository.createTicket({
       passenger_id: passengerId,
       trip_id: payload.trip_id,
       status: TICKET_STATUS_GENERATED,
-      payment_type: TICKET_PAYMENT_TYPE_MOCK,
+      payment_type: isSenior ? TICKET_PAYMENT_TYPE_SENIOR : TICKET_PAYMENT_TYPE_MOCK,
       qr_payload: "pending",
     });
 
