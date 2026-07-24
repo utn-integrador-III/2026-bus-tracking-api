@@ -31,6 +31,7 @@ class PassengerIncidentService {
   async createPassengerIncident(payload) {
     return this.passengerIncidentRepository.createPassengerIncident({
       trip_id: payload.trip_id,
+      user_id: payload.user_id,
       type: payload.type,
       description: payload.description || null,
       latitude: payload.latitude,
@@ -51,7 +52,10 @@ class PassengerIncidentController {
   }
 
   async createPassengerIncident(req, res) {
-    const row = await this.passengerIncidentService.createPassengerIncident(req.valid.body);
+    const row = await this.passengerIncidentService.createPassengerIncident({
+      ...req.valid.body,
+      user_id: req.auth.userId,
+    });
     res.status(HTTP_STATUS.CREATED).json({
       incident_id: row.id,
       incident: row,

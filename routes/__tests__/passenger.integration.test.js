@@ -52,6 +52,7 @@ describe("passenger incident routes", () => {
           longitude: -84.8384,
         });
 
+      console.log("500 ERROR BODY:", response.body);
       expect(response.status).toBe(201);
       expect(response.body).toEqual({
         incident_id: "incident-1",
@@ -68,6 +69,7 @@ describe("passenger incident routes", () => {
 
       expect(passengerService.createPassengerIncident).toHaveBeenCalledWith({
         trip_id: validTripId,
+        user_id: "passenger-user-id",
         type: "traffic",
         description: "Traffic jam near the main stop.",
         latitude: 9.9763,
