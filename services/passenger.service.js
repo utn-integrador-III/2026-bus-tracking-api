@@ -5,6 +5,7 @@ const incidentsRepository = require("../repositories/incidentsRepository");
 async function createPassengerIncident(payload) {
   return incidentsRepository.createPassengerIncident({
     trip_id: payload.trip_id,
+    user_id: payload.user_id,
     type: payload.type,
     description: payload.description || null,
     latitude: payload.latitude,

@@ -29,6 +29,7 @@ describe("passenger.service", () => {
 
       const result = await passengerService.createPassengerIncident({
         trip_id: validTripId,
+        user_id: "user-123",
         type: "traffic",
         description: "Traffic jam near the main stop.",
         latitude: 9.9763,
@@ -37,6 +38,7 @@ describe("passenger.service", () => {
 
       expect(incidentsRepository.createPassengerIncident).toHaveBeenCalledWith({
         trip_id: validTripId,
+        user_id: "user-123",
         type: "traffic",
         description: "Traffic jam near the main stop.",
         latitude: 9.9763,
@@ -60,6 +62,7 @@ describe("passenger.service", () => {
 
       const result = await passengerService.createPassengerIncident({
         trip_id: validTripId,
+        user_id: "user-456",
         type: "overcrowding",
         latitude: 9.9763,
         longitude: -84.8384,
@@ -67,6 +70,7 @@ describe("passenger.service", () => {
 
       expect(incidentsRepository.createPassengerIncident).toHaveBeenCalledWith({
         trip_id: validTripId,
+        user_id: "user-456",
         type: "overcrowding",
         description: null,
         latitude: 9.9763,
