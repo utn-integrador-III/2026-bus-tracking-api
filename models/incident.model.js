@@ -19,13 +19,32 @@ const createPassengerIncidentSchema = z
   })
   .strict();
 
+const createDriverIncidentSchema = z
+  .object({
+    trip_id: tripId,
+    type,
+    description,
+    latitude,
+    longitude,
+  })
+  .strict();
+
 const listPassengerIncidentsQuerySchema = z
   .object({
     trip_id: tripId,
   })
   .strict();
 
+const listMapIncidentsQuerySchema = z
+  .object({
+    trip_id: tripId,
+    since: z.string().datetime().optional(),
+  })
+  .strict();
+
 module.exports = {
   createPassengerIncidentSchema,
+  createDriverIncidentSchema,
   listPassengerIncidentsQuerySchema,
+  listMapIncidentsQuerySchema,
 };
