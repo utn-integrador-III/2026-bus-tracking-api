@@ -547,6 +547,59 @@ describe("auth.service", () => {
       });
     });
 
+    test("rejects login for a deactivated account", async () => {
+      getAnonClient.mockReturnValue({
+        auth: {
+          signInWithPassword: jest.fn().mockResolvedValue({
+            data: {
+              session: {
+                access_token: "access-token",
+                refresh_token: "refresh-token",
+                expires_in: 3600,
+                token_type: "bearer",
+              },
+              user: {
+                id: validUserId,
+                email: "senior.passenger@example.com",
+                user_metadata: {
+                  name: "Senior Passenger",
+                  role: "Passenger",
+                },
+              },
+            },
+            error: null,
+          }),
+        },
+      });
+
+      userRepository.findUserById.mockResolvedValue({
+        id: validUserId,
+        email: "senior.passenger@example.com",
+        role: "Passenger",
+        name: "Senior Passenger",
+        is_active: false,
+        deactivated_at: "2026-08-01T01:18:52.365Z",
+      });
+
+      await expect(
+        authService.loginUser({
+          email: "senior.passenger@example.com",
+          password: "Password123",
+        }),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.AUTH_ACCOUNT_DEACTIVATED,
+        statusCode: 403,
+      });
+
+      expect(authAuditRepository.createLoginAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user_id: validUserId,
+          was_successful: false,
+          failure_code: ERROR_CODES.AUTH_ACCOUNT_DEACTIVATED,
+        }),
+      );
+    });
+
     test("exposes the senior flag for an approved senior passenger", async () => {
       getAnonClient.mockReturnValue({
         auth: {

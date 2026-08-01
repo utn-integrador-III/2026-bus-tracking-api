@@ -200,6 +200,26 @@ class AuthService {
     }
 
     const dbUser = await this.userRepository.findUserById(data.user.id);
+
+    if (dbUser && dbUser.is_active === false) {
+      await this.writeLoginAudit({
+        user_id: data.user.id,
+        email: data.user.email,
+        role: this.normalizeUserRole(data.user, dbUser),
+        auth_strategy: "password",
+        oauth_provider: null,
+        was_successful: false,
+        failure_code: ERROR_CODES.AUTH_ACCOUNT_DEACTIVATED,
+        ip_address: context.ipAddress || null,
+        user_agent: context.userAgent || null,
+      });
+      throw new AppError(
+        HTTP_STATUS.FORBIDDEN,
+        ERROR_CODES.AUTH_ACCOUNT_DEACTIVATED,
+        "This account is deactivated and cannot sign in.",
+      );
+    }
+
     const passenger = await this.findPassengerProfile(
       this.normalizeUserRole(data.user, dbUser),
       data.user.id,
