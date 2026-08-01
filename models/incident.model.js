@@ -19,7 +19,7 @@ const latitude = z.number().min(-90).max(90);
 
 const tripId = z.string().uuid();
 const type = z.preprocess(normalizeReportType, z.enum(REPORT_TYPE_VALUES));
-const description = z.string().trim().max(500).optional();
+const description = z.string().trim().min(1).max(500);
 
 const createPassengerIncidentSchema = z
   .object({

@@ -21,7 +21,7 @@ describe("createPassengerIncidentSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  test("accepts a payload without description", () => {
+  test("rejects a payload without description", () => {
     const result = createPassengerIncidentSchema.safeParse({
       trip_id: validTripId,
       type: "Overcrowding",
@@ -29,7 +29,19 @@ describe("createPassengerIncidentSchema", () => {
       longitude: -84.8384,
     });
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects a blank description", () => {
+    const result = createPassengerIncidentSchema.safeParse({
+      trip_id: validTripId,
+      type: "overcrowding",
+      description: "   ",
+      latitude: 9.9763,
+      longitude: -84.8384,
+    });
+
+    expect(result.success).toBe(false);
   });
 
   test("normalizes the casing of a known enum value", () => {
