@@ -67,6 +67,12 @@ function buildService(repo, realtime, extra = {}) {
   });
 }
 
+async function reportOutOfRange(service, times) {
+  for (let index = 0; index < times; index += 1) {
+    await service.checkProximity("trip-1", FAR_LAT, FAR_LNG);
+  }
+}
+
 describe("PassengerTrackingService.watchStop", () => {
   it("delegates to the repository when the stop belongs to the trip route", async () => {
     const repo = buildRepository({
@@ -203,7 +209,7 @@ describe("PassengerTrackingService.checkProximity - passed / redirect", () => {
     const realtime = buildRealtime();
     const service = buildService(repo, realtime);
 
-    await service.checkProximity("trip-1", FAR_LAT, FAR_LNG);
+    await reportOutOfRange(service, 3);
 
     expect(repo.getNextStop).toHaveBeenCalledWith("route-1", 3);
     expect(repo.redirectWatch).toHaveBeenCalledWith("watch-1", "stop-2");
@@ -225,7 +231,7 @@ describe("PassengerTrackingService.checkProximity - passed / redirect", () => {
     const realtime = buildRealtime();
     const service = buildService(repo, realtime);
 
-    await service.checkProximity("trip-1", FAR_LAT, FAR_LNG);
+    await reportOutOfRange(service, 3);
 
     expect(repo.markAsPassed).toHaveBeenCalledWith(["watch-1"]);
     expect(repo.redirectWatch).not.toHaveBeenCalled();
@@ -259,7 +265,7 @@ describe("PassengerTrackingService.checkProximity - passed / redirect", () => {
     const realtime = buildRealtime();
     const service = buildService(repo, realtime);
 
-    await service.checkProximity("trip-1", FAR_LAT, FAR_LNG);
+    await reportOutOfRange(service, 3);
 
     expect(repo.getNextStop).not.toHaveBeenCalled();
     expect(repo.markAsPassed).toHaveBeenCalledWith(["watch-1"]);
@@ -268,6 +274,102 @@ describe("PassengerTrackingService.checkProximity - passed / redirect", () => {
       ALERT_EVENTS.PASSED,
       expect.objectContaining({ redirected: false, next_stop: null }),
     );
+  });
+});
+
+describe("PassengerTrackingService.checkProximity - passed hysteresis", () => {
+  function buildAlertedSetup(extra = {}) {
+    const watch = buildWatch({ status: WATCH_STATUS.APPROACHING });
+    const repo = buildRepository({ getActiveWatchesForTrip: jest.fn().mockResolvedValue([watch]) });
+    const realtime = buildRealtime();
+    return { watch, repo, realtime, service: buildService(repo, realtime, extra) };
+  }
+
+  it("does not mark as passed on a single out-of-range sample", async () => {
+    const { repo, realtime, service } = buildAlertedSetup();
+
+    await reportOutOfRange(service, 1);
+
+    expect(repo.markAsPassed).not.toHaveBeenCalled();
+    expect(repo.redirectWatch).not.toHaveBeenCalled();
+    expect(realtime.emitUserAlert).not.toHaveBeenCalled();
+  });
+
+  it("does not mark as passed until the configured number of consecutive samples is reached", async () => {
+    const { repo, service } = buildAlertedSetup();
+
+    await reportOutOfRange(service, 2);
+    expect(repo.markAsPassed).not.toHaveBeenCalled();
+
+    await reportOutOfRange(service, 1);
+    expect(repo.markAsPassed).toHaveBeenCalledWith(["watch-1"]);
+  });
+
+  it("resets the counter when the bus comes back inside the geofence", async () => {
+    const { repo, service } = buildAlertedSetup();
+
+    await reportOutOfRange(service, 2);
+    await service.checkProximity("trip-1", STOP_LAT, STOP_LNG);
+    await reportOutOfRange(service, 2);
+
+    expect(repo.markAsPassed).not.toHaveBeenCalled();
+  });
+
+  it("does not count a sample that is still within the exit buffer", async () => {
+    const { repo, service } = buildAlertedSetup({
+      defaultRadiusMeters: 500,
+      passedExitBufferMeters: 100000,
+    });
+
+    await reportOutOfRange(service, 5);
+
+    expect(repo.markAsPassed).not.toHaveBeenCalled();
+  });
+
+  it("honours a custom confirmation threshold", async () => {
+    const { repo, service } = buildAlertedSetup({ passedConfirmationSamples: 1 });
+
+    await reportOutOfRange(service, 1);
+
+    expect(repo.markAsPassed).toHaveBeenCalledWith(["watch-1"]);
+  });
+
+  it("keeps counters of other trips isolated", async () => {
+    const watchA = buildWatch({ id: "watch-a", trip_id: "trip-1" });
+    const watchB = buildWatch({ id: "watch-b", trip_id: "trip-2" });
+    const repo = buildRepository({
+      getActiveWatchesForTrip: jest.fn().mockImplementation(async (tripId) => {
+        return tripId === "trip-1"
+          ? [{ ...watchA, status: WATCH_STATUS.APPROACHING }]
+          : [{ ...watchB, status: WATCH_STATUS.APPROACHING }];
+      }),
+    });
+    const service = buildService(repo, buildRealtime());
+
+    await service.checkProximity("trip-1", FAR_LAT, FAR_LNG);
+    await service.checkProximity("trip-2", FAR_LAT, FAR_LNG);
+    await service.checkProximity("trip-1", FAR_LAT, FAR_LNG);
+
+    expect(service.outOfRangeSamples.get("trip-1|watch-a")).toBe(2);
+    expect(service.outOfRangeSamples.get("trip-2|watch-b")).toBe(1);
+  });
+
+  it("drops counters for watches that are no longer active", async () => {
+    const watch = buildWatch({ status: WATCH_STATUS.APPROACHING });
+    const repo = buildRepository({
+      getActiveWatchesForTrip: jest
+        .fn()
+        .mockResolvedValueOnce([watch])
+        .mockResolvedValueOnce([watch])
+        .mockResolvedValueOnce([])
+        .mockResolvedValue([watch]),
+    });
+    const service = buildService(repo, buildRealtime());
+
+    await reportOutOfRange(service, 4);
+
+    expect(repo.markAsPassed).not.toHaveBeenCalled();
+    expect(service.outOfRangeSamples.get("trip-1|watch-1")).toBe(1);
   });
 });
 
@@ -291,6 +393,8 @@ describe("PassengerTrackingService.checkProximity - mixed and edge cases", () =>
     const realtime = buildRealtime();
     const service = buildService(repo, realtime);
 
+    await service.checkProximity("trip-1", STOP_LAT, STOP_LNG);
+    await service.checkProximity("trip-1", STOP_LAT, STOP_LNG);
     await service.checkProximity("trip-1", STOP_LAT, STOP_LNG);
 
     expect(realtime.emitUserAlert).toHaveBeenCalledWith("user-approach", ALERT_EVENTS.APPROACHING, expect.any(Object));
@@ -343,5 +447,50 @@ describe("PassengerTrackingService.checkProximity - mixed and edge cases", () =>
 
     await expect(service.checkProximity("trip-1", STOP_LAT, STOP_LNG)).resolves.toBeUndefined();
     expect(repo.markAsAlerted).toHaveBeenCalledWith(["watch-1"]);
+  });
+});
+
+describe("PassengerTrackingService.checkProximity - push dispatch", () => {
+  it("pushes bus_approaching alongside the realtime broadcast", async () => {
+    const watch = buildWatch({ status: WATCH_STATUS.WAITING });
+    const repo = buildRepository({ getActiveWatchesForTrip: jest.fn().mockResolvedValue([watch]) });
+    const realtime = buildRealtime();
+    const pushService = { sendAlert: jest.fn().mockResolvedValue(true) };
+    const service = buildService(repo, realtime, { pushService });
+
+    await service.checkProximity("trip-1", STOP_LAT, STOP_LNG);
+
+    expect(realtime.emitUserAlert).toHaveBeenCalledWith("user-1", ALERT_EVENTS.APPROACHING, expect.any(Object));
+    expect(pushService.sendAlert).toHaveBeenCalledWith("user-1", ALERT_EVENTS.APPROACHING, {
+      trip_id: "trip-1",
+      stop_id: "stop-1",
+    });
+  });
+
+  it("pushes bus_passed alongside the realtime broadcast", async () => {
+    const watch = buildWatch({ status: WATCH_STATUS.APPROACHING });
+    const repo = buildRepository({ getActiveWatchesForTrip: jest.fn().mockResolvedValue([watch]) });
+    const realtime = buildRealtime();
+    const pushService = { sendAlert: jest.fn().mockResolvedValue(true) };
+    const service = buildService(repo, realtime, { pushService });
+
+    await service.checkProximity("trip-1", FAR_LAT, FAR_LNG);
+
+    expect(pushService.sendAlert).toHaveBeenCalledWith(
+      "user-1",
+      ALERT_EVENTS.PASSED,
+      expect.objectContaining({ trip_id: "trip-1", stop_id: "stop-1" }),
+    );
+  });
+
+  it("still broadcasts over realtime when no push service is configured", async () => {
+    const watch = buildWatch({ status: WATCH_STATUS.WAITING });
+    const repo = buildRepository({ getActiveWatchesForTrip: jest.fn().mockResolvedValue([watch]) });
+    const realtime = buildRealtime();
+    const service = buildService(repo, realtime);
+
+    await service.checkProximity("trip-1", STOP_LAT, STOP_LNG);
+
+    expect(realtime.emitUserAlert).toHaveBeenCalledTimes(1);
   });
 });
