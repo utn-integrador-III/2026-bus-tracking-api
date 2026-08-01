@@ -21,6 +21,11 @@ const DEFAULT_RADIUS_METERS = 500;
 const DEFAULT_PASSED_CONFIRMATION_SAMPLES = 3;
 const DEFAULT_PASSED_EXIT_BUFFER_METERS = 150;
 
+const ALERT_FAILURE_STAGES = {
+  WATCH_QUERY: "watch_query_failed",
+  ALERT_DISPATCH: "alert_dispatch_failed",
+};
+
 class PassengerTrackingService {
   constructor(dependencies = {}) {
     this.watchRepository = dependencies.watchRepository;
@@ -28,6 +33,7 @@ class PassengerTrackingService {
     this.tripRepository = dependencies.tripRepository || tripsRepository;
     this.pushService = dependencies.pushService || null;
     this.defaultRadiusMeters = dependencies.defaultRadiusMeters || DEFAULT_RADIUS_METERS;
+    this.alertFailures = { total: 0, byStage: {}, lastFailure: null };
     this.passedConfirmationSamples =
       dependencies.passedConfirmationSamples || DEFAULT_PASSED_CONFIRMATION_SAMPLES;
     this.passedExitBufferMeters =
@@ -35,6 +41,37 @@ class PassengerTrackingService {
         ? DEFAULT_PASSED_EXIT_BUFFER_METERS
         : dependencies.passedExitBufferMeters;
     this.outOfRangeSamples = new Map();
+  }
+
+  getAlertFailureStats() {
+    return {
+      total: this.alertFailures.total,
+      byStage: { ...this.alertFailures.byStage },
+      lastFailure: this.alertFailures.lastFailure,
+    };
+  }
+
+  _recordAlertFailure(stage, tripId, err) {
+    this.alertFailures.total += 1;
+    this.alertFailures.byStage[stage] = (this.alertFailures.byStage[stage] || 0) + 1;
+    this.alertFailures.lastFailure = {
+      stage,
+      trip_id: tripId,
+      message: err.message,
+      at: new Date().toISOString(),
+    };
+
+    console.error(
+      JSON.stringify({
+        scope: "geofence_alerts",
+        level: "error",
+        event: stage,
+        trip_id: tripId,
+        error: err.message,
+        error_code: err.code || null,
+        failure_total: this.alertFailures.total,
+      }),
+    );
   }
 
   async watchStop(userId, tripId, stopId) {
@@ -69,13 +106,20 @@ class PassengerTrackingService {
   }
 
   async checkProximity(tripId, currentLat, currentLng) {
+    let activeWatches;
+
     try {
-      const activeWatches = await this.watchRepository.getActiveWatchesForTrip(tripId);
+      activeWatches = await this.watchRepository.getActiveWatchesForTrip(tripId);
+    } catch (err) {
+      this._recordAlertFailure(ALERT_FAILURE_STAGES.WATCH_QUERY, tripId, err);
+      return;
+    }
 
-      this._pruneOutOfRangeSamples(tripId, activeWatches || []);
+    this._pruneOutOfRangeSamples(tripId, activeWatches || []);
 
-      if (!activeWatches || activeWatches.length === 0) return;
+    if (!activeWatches || activeWatches.length === 0) return;
 
+    try {
       const approaching = [];
       const passed = [];
 
@@ -104,7 +148,7 @@ class PassengerTrackingService {
       await this._handleApproaching(approaching);
       await this._handlePassed(passed);
     } catch (err) {
-      console.error("Error en checkProximity:", err.message);
+      this._recordAlertFailure(ALERT_FAILURE_STAGES.ALERT_DISPATCH, tripId, err);
     }
   }
 
@@ -190,3 +234,4 @@ class PassengerTrackingService {
 module.exports = PassengerTrackingService;
 module.exports.WATCH_STATUS = WATCH_STATUS;
 module.exports.ALERT_EVENTS = ALERT_EVENTS;
+module.exports.ALERT_FAILURE_STAGES = ALERT_FAILURE_STAGES;
