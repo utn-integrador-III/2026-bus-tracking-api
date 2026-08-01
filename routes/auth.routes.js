@@ -16,6 +16,7 @@ const router = express.Router();
 
 router.post(
   "/senior-document/upload-url",
+  requireAuth,
   validate({ body: seniorDocumentUploadUrlSchema }, ERROR_CODES.AUTH_VALIDATION_FAILED),
   controller.createSeniorDocumentUploadUrl,
 );

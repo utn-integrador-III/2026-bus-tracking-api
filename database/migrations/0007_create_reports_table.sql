@@ -1,5 +1,5 @@
-create type public.report_type as enum ('Traffic', 'Accident', 'Overcrowding', 'Mechanical', 'Hazard', 'Other');
-create type public.report_moderation_status as enum ('pending', 'validated', 'dismissed');
+create type public.report_type as enum ('Accident', 'Delay', 'Traffic_Congestion', 'Overcrowding', 'Road_Problem', 'Mechanical_Failure', 'Other');
+create type public.report_moderation_status as enum ('Pending', 'Validated', 'Discarded');
 
 create table if not exists public.reports (
   id uuid primary key default gen_random_uuid(),
@@ -11,7 +11,7 @@ create table if not exists public.reports (
   longitude numeric not null,
   timestamp timestamptz not null default now(),
   geog extensions.geography,
-  moderation_status public.report_moderation_status not null default 'pending'::public.report_moderation_status,
+  moderation_status public.report_moderation_status not null default 'Pending'::public.report_moderation_status,
   moderated_by uuid references auth.users(id),
   moderated_at timestamptz
 );
