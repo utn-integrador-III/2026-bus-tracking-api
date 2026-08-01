@@ -6,7 +6,7 @@ const { HTTP_STATUS } = require("../../../../constants/httpStatus");
 const { ERROR_CODES } = require("../../../../constants/errorCodes");
 
 const TABLE = "reports";
-const COLUMNS = "id, trip_id, type, description, latitude, longitude, timestamp";
+const COLUMNS = "id, trip_id, user_id, type, description, latitude, longitude, timestamp, moderation_status";
 
 function databaseError(error) {
   return new AppError(
