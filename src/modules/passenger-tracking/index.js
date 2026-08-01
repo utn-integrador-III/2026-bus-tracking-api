@@ -8,6 +8,7 @@ const validate = require("../../../middleware/validate");
 const { z } = require("zod");
 const SupabaseTripWatchRepository = require("./infrastructure/SupabaseTripWatchRepository");
 const PassengerTrackingService = require("./services/tracking.service");
+const ExpoPushService = require("./services/push.service");
 const realtimeManager = require("../../../realtime/index");
 const { idParamSchema } = require("../../../models/tripSchema");
 const tripsRepository = require("../../../repositories/tripsRepository");
@@ -54,13 +55,15 @@ class PassengerTrackingController {
 
 function createPassengerTrackingModule(dependencies = {}) {
   const watchRepository = dependencies.watchRepository || new SupabaseTripWatchRepository();
+  const pushService = dependencies.pushService || new ExpoPushService();
   const trackingService = dependencies.trackingService || new PassengerTrackingService({
     watchRepository,
     realtimeManager: dependencies.realtimeManager || realtimeManager,
+    pushService,
   });
   const trackingController = dependencies.trackingController || new PassengerTrackingController(trackingService);
 
-  return { watchRepository, trackingService, trackingController };
+  return { watchRepository, pushService, trackingService, trackingController };
 }
 
 function createPassengerTrackingRouter(dependencies = {}) {
@@ -82,6 +85,7 @@ function createPassengerTrackingRouter(dependencies = {}) {
 
 module.exports = {
   SupabaseTripWatchRepository,
+  ExpoPushService,
   PassengerTrackingService,
   PassengerTrackingController,
   createPassengerTrackingModule,

@@ -18,6 +18,8 @@ const CHECKOUT_DELAY_MS = 1500;
 const TICKET_STATUS_GENERATED = "Generated";
 const TICKET_PAYMENT_TYPE_MOCK = "Mock";
 const TICKET_PAYMENT_TYPE_SENIOR = "Senior_Exemption";
+const SENIOR_EXEMPTION_FARE = 0;
+const MOCK_CHECKOUT_FARE = 500;
 
 function wait(milliseconds) {
   return new Promise((resolve) => {
@@ -26,11 +28,17 @@ function wait(milliseconds) {
 }
 
 function getQrSecret() {
-  return (
-    process.env.TICKET_QR_SECRET ||
-    process.env.JWT_SECRET ||
-    "local-ticket-secret"
-  );
+  const secret = process.env.TICKET_QR_SECRET || process.env.JWT_SECRET_KEY;
+
+  if (!secret) {
+    throw new AppError(
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      ERROR_CODES.TICKET_QR_SECRET_MISSING,
+      "TICKET_QR_SECRET is not configured; tickets cannot be signed.",
+    );
+  }
+
+  return secret;
 }
 
 function generateSecureQrPayload(ticketId, passengerId, tripId, qrToken) {
@@ -91,6 +99,19 @@ class TicketService {
     );
   }
 
+  async isSeniorPassenger(passengerId) {
+    try {
+      const passenger = await this.passengerRepository.findPassengerById(passengerId);
+      return passenger ? passenger.is_senior === true : false;
+    } catch (error) {
+      console.error(
+        "Error reading passenger profile during checkout:",
+        error.message,
+      );
+      return false;
+    }
+  }
+
   async checkout(passengerId, payload) {
     const existingTicket =
       await this.ticketRepository.findGeneratedByPassengerAndTrip(
@@ -106,8 +127,7 @@ class TicketService {
       );
     }
 
-    const passenger = await this.passengerRepository.findPassengerById(passengerId);
-    const isSenior = passenger && passenger.is_senior === true;
+    const isSenior = await this.isSeniorPassenger(passengerId);
 
     if (!isSenior) {
       await wait(CHECKOUT_DELAY_MS);
@@ -118,6 +138,7 @@ class TicketService {
       trip_id: payload.trip_id,
       status: TICKET_STATUS_GENERATED,
       payment_type: isSenior ? TICKET_PAYMENT_TYPE_SENIOR : TICKET_PAYMENT_TYPE_MOCK,
+      fare: isSenior ? SENIOR_EXEMPTION_FARE : MOCK_CHECKOUT_FARE,
       qr_payload: "pending",
     });
 
@@ -198,7 +219,7 @@ class TicketController {
 
     const tickets = await this.service.listByPassenger(passengerId);
 
-    res.status(HTTP_STATUS.OK || 200).json(tickets);
+    res.status(HTTP_STATUS.OK).json(tickets);
   }
 }
 

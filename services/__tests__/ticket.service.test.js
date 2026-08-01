@@ -64,6 +64,7 @@ describe("TicketService", () => {
       trip_id: TRIP_ID,
       status: "Generated",
       payment_type: "Mock",
+      fare: 500,
       qr_payload: "pending",
     });
 
@@ -135,6 +136,64 @@ describe("TicketService", () => {
     expect(ticketRepository.updateTicketQrPayload).not.toHaveBeenCalled();
   });
 
+  test("falls back to the non-senior path when the passenger lookup fails", async () => {
+    const draftTicket = {
+      id: TICKET_ID,
+      passenger_id: PASSENGER_ID,
+      trip_id: TRIP_ID,
+      status: "Generated",
+      payment_type: "Mock",
+      qr_payload: "pending",
+      qr_token: null,
+      generated_at: "2026-07-01T00:00:00.000Z",
+      created_at: "2026-07-01T00:00:00.000Z",
+    };
+
+    const ticketRepository = {
+      createTicket: jest.fn().mockResolvedValue(draftTicket),
+      updateTicketQrPayload: jest.fn().mockImplementation(
+        (ticketId, qrPayload, qrToken) =>
+          Promise.resolve({
+            ...draftTicket,
+            id: ticketId,
+            qr_payload: qrPayload,
+            qr_token: qrToken,
+          }),
+      ),
+    };
+
+    const passengerRepository = {
+      findPassengerById: jest
+        .fn()
+        .mockRejectedValue(new Error("supabase unavailable")),
+    };
+
+    const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    const service = new TicketService({ ticketRepository, passengerRepository });
+
+    const checkoutPromise = service.checkout(PASSENGER_ID, {
+      trip_id: TRIP_ID,
+    });
+
+    await jest.advanceTimersByTimeAsync(1500);
+
+    const ticket = await checkoutPromise;
+
+    expect(ticketRepository.createTicket).toHaveBeenCalledWith({
+      passenger_id: PASSENGER_ID,
+      trip_id: TRIP_ID,
+      status: "Generated",
+      payment_type: "Mock",
+      qr_payload: "pending",
+    });
+
+    expect(ticket.payment_type).toBe("Mock");
+    expect(consoleSpy).toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+
   test("bypasses payment delay and sets Senior_Exemption for senior passengers", async () => {
     const passengerRepository = {
       findPassengerById: jest.fn().mockResolvedValue({ is_senior: true }),
@@ -177,6 +236,7 @@ describe("TicketService", () => {
       trip_id: TRIP_ID,
       status: "Generated",
       payment_type: "Senior_Exemption",
+      fare: 0,
       qr_payload: "pending",
     });
 
