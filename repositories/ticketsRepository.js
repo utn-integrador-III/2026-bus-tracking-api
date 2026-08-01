@@ -1,16 +1,12 @@
 "use strict";
 
-const { createClient } = require("@supabase/supabase-js");
-const { env } = require("../config/env");
 const AppError = require("../utils/AppError");
 const { HTTP_STATUS } = require("../constants/httpStatus");
 
 const TABLE = "tickets";
 const COLUMNS =
-  "id, passenger_id, trip_id, status, payment_type, generated_at, scanned_at, qr_token, scanned_by, qr_payload, created_at";
+  "id, passenger_id, trip_id, status, payment_type, fare, generated_at, scanned_at, qr_token, scanned_by, qr_payload, created_at";
 const STATUS_GENERATED = "Generated";
-
-let supabase = null;
 
 const { getServiceClient } = require("../database/supabaseClient");
 
