@@ -52,7 +52,6 @@ describe("passenger incident routes", () => {
           longitude: -84.8384,
         });
 
-      console.log("500 ERROR BODY:", response.body);
       expect(response.status).toBe(201);
       expect(response.body).toEqual({
         incident_id: "incident-1",
