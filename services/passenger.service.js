@@ -1,6 +1,7 @@
 "use strict";
 
 const incidentsRepository = require("../repositories/incidentsRepository");
+const { incidentWindowStart } = require("../constants/incidentWindow");
 
 async function createPassengerIncident(payload) {
   return incidentsRepository.createPassengerIncident({
@@ -14,7 +15,9 @@ async function createPassengerIncident(payload) {
 }
 
 async function listPassengerIncidents(query) {
-  return incidentsRepository.findIncidentsByTripId(query.trip_id);
+  return incidentsRepository.findIncidentsByTripId(query.trip_id, {
+    since: incidentWindowStart(),
+  });
 }
 
 module.exports = {
