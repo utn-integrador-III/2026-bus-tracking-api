@@ -46,12 +46,21 @@ describe("seniorVerification.model", () => {
     expect(result.success).toBe(true);
   });
 
-  test("accepts an approve payload with reviewed_by", () => {
+  test("rejects an approve payload with a client supplied reviewed_by", () => {
     const result = approveSeniorRequestSchema.safeParse({
       reviewed_by: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
     });
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects a reject payload with a client supplied reviewed_by", () => {
+    const result = rejectSeniorRequestSchema.safeParse({
+      reviewed_by: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+      rejection_reason: "The uploaded document is not readable.",
+    });
+
+    expect(result.success).toBe(false);
   });
 
   test("rejects a reject payload without rejection_reason", () => {

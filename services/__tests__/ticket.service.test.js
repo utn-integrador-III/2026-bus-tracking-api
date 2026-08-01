@@ -39,6 +39,7 @@ describe("TicketService", () => {
     };
 
     const ticketRepository = {
+      findGeneratedByPassengerAndTrip: jest.fn().mockResolvedValue(null),
       createTicket: jest.fn().mockResolvedValue(draftTicket),
       updateTicketQrPayload: jest.fn().mockImplementation(
         (ticketId, qrPayload, qrToken) =>
@@ -74,6 +75,7 @@ describe("TicketService", () => {
       trip_id: TRIP_ID,
       status: "Generated",
       payment_type: "Mock",
+      fare: 500,
       qr_payload: "pending",
     });
 
@@ -103,9 +105,51 @@ describe("TicketService", () => {
     expect(decodedPayload.signature).toEqual(expect.any(String));
   });
 
-  test("creates a new ticket every time checkout is called for the same passenger and trip", async () => {
-    const firstDraftTicket = {
-      id: "9f2504e0-4f89-41d3-9a0c-0305e82c3309",
+  test("rejects a second checkout for the same passenger and trip", async () => {
+    const existingTicket = {
+      id: TICKET_ID,
+      passenger_id: PASSENGER_ID,
+      trip_id: TRIP_ID,
+      status: "Generated",
+      payment_type: "Mock",
+      qr_payload: "secure_payload",
+      qr_token: "token",
+      generated_at: "2026-07-01T00:00:00.000Z",
+      created_at: "2026-07-01T00:00:00.000Z",
+    };
+
+    const ticketRepository = {
+      findGeneratedByPassengerAndTrip: jest
+        .fn()
+        .mockResolvedValue(existingTicket),
+      createTicket: jest.fn(),
+      updateTicketQrPayload: jest.fn(),
+    };
+
+    const passengerRepository = {
+      findPassengerById: jest.fn().mockResolvedValue({ is_senior: false }),
+    };
+
+    const service = new TicketService({ ticketRepository, passengerRepository });
+
+    await expect(
+      service.checkout(PASSENGER_ID, { trip_id: TRIP_ID }),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: "TICKET_ALREADY_GENERATED",
+    });
+
+    expect(ticketRepository.findGeneratedByPassengerAndTrip).toHaveBeenCalledWith(
+      PASSENGER_ID,
+      TRIP_ID,
+    );
+    expect(ticketRepository.createTicket).not.toHaveBeenCalled();
+    expect(ticketRepository.updateTicketQrPayload).not.toHaveBeenCalled();
+  });
+
+  test("falls back to the non-senior path when the passenger lookup fails", async () => {
+    const draftTicket = {
+      id: TICKET_ID,
       passenger_id: PASSENGER_ID,
       trip_id: TRIP_ID,
       status: "Generated",
@@ -116,42 +160,26 @@ describe("TicketService", () => {
       created_at: "2026-07-01T00:00:00.000Z",
     };
 
-    const secondDraftTicket = {
-      id: "8f2504e0-4f89-41d3-9a0c-0305e82c3308",
-      passenger_id: PASSENGER_ID,
-      trip_id: TRIP_ID,
-      status: "Generated",
-      payment_type: "Mock",
-      qr_payload: "pending",
-      qr_token: null,
-      generated_at: "2026-07-01T00:01:00.000Z",
-      created_at: "2026-07-01T00:01:00.000Z",
-    };
-
     const ticketRepository = {
-      createTicket: jest
-        .fn()
-        .mockResolvedValueOnce(firstDraftTicket)
-        .mockResolvedValueOnce(secondDraftTicket),
+      createTicket: jest.fn().mockResolvedValue(draftTicket),
       updateTicketQrPayload: jest.fn().mockImplementation(
         (ticketId, qrPayload, qrToken) =>
           Promise.resolve({
+            ...draftTicket,
             id: ticketId,
-            passenger_id: PASSENGER_ID,
-            trip_id: TRIP_ID,
-            status: "Generated",
-            payment_type: "Mock",
             qr_payload: qrPayload,
             qr_token: qrToken,
-            generated_at: "2026-07-01T00:00:00.000Z",
-            created_at: "2026-07-01T00:00:00.000Z",
           }),
       ),
     };
 
     const passengerRepository = {
-      findPassengerById: jest.fn().mockResolvedValue({ is_senior: false }),
+      findPassengerById: jest
+        .fn()
+        .mockRejectedValue(new Error("supabase unavailable")),
     };
+
+    const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
 
     const service = new TicketService({
       ticketRepository,
@@ -159,28 +187,26 @@ describe("TicketService", () => {
       tripRepository,
     });
 
-    const firstCheckoutPromise = service.checkout(PASSENGER_ID, {
+    const checkoutPromise = service.checkout(PASSENGER_ID, {
       trip_id: TRIP_ID,
     });
 
     await jest.advanceTimersByTimeAsync(1500);
 
-    const firstTicket = await firstCheckoutPromise;
+    const ticket = await checkoutPromise;
 
-    const secondCheckoutPromise = service.checkout(PASSENGER_ID, {
+    expect(ticketRepository.createTicket).toHaveBeenCalledWith({
+      passenger_id: PASSENGER_ID,
       trip_id: TRIP_ID,
+      status: "Generated",
+      payment_type: "Mock",
+      qr_payload: "pending",
     });
 
-    await jest.advanceTimersByTimeAsync(1500);
+    expect(ticket.payment_type).toBe("Mock");
+    expect(consoleSpy).toHaveBeenCalled();
 
-    const secondTicket = await secondCheckoutPromise;
-
-    expect(ticketRepository.createTicket).toHaveBeenCalledTimes(2);
-    expect(ticketRepository.updateTicketQrPayload).toHaveBeenCalledTimes(2);
-
-    expect(firstTicket.id).not.toBe(secondTicket.id);
-    expect(firstTicket.trip_id).toBe(secondTicket.trip_id);
-    expect(firstTicket.passenger_id).toBe(secondTicket.passenger_id);
+    consoleSpy.mockRestore();
   });
 
   test.each(["Completed", "Cancelled"])(
@@ -260,6 +286,7 @@ describe("TicketService", () => {
     };
 
     const ticketRepository = {
+      findGeneratedByPassengerAndTrip: jest.fn().mockResolvedValue(null),
       createTicket: jest.fn().mockResolvedValue(draftTicket),
       updateTicketQrPayload: jest.fn().mockImplementation(
         (ticketId, qrPayload, qrToken) =>
@@ -287,6 +314,7 @@ describe("TicketService", () => {
       trip_id: TRIP_ID,
       status: "Generated",
       payment_type: "Senior_Exemption",
+      fare: 0,
       qr_payload: "pending",
     });
 
