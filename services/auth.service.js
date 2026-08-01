@@ -29,7 +29,7 @@ function normalizeStorageSegment(value, fallback) {
 }
 
 function buildSeniorDocumentPath(payload) {
-  const owner = normalizeStorageSegment(payload.email, "passenger");
+  const owner = normalizeStorageSegment(payload.user_id, "passenger");
   const rawFileName = normalizeStorageSegment(payload.file_name, "document");
   const baseName = rawFileName.replace(/\.[a-z0-9]+$/i, "") || "document";
   const extension = SENIOR_DOCUMENT_CONTENT_TYPES[payload.content_type];

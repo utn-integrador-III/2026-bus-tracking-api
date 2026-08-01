@@ -60,7 +60,7 @@ describe("auth.service", () => {
       const createSignedUploadUrl = jest.fn().mockResolvedValue({
         data: {
           signedUrl: "https://storage.example.com/upload",
-          path: "passengers/senior.passenger-example.com/1782511200000-cedula-frontal.jpg",
+          path: "passengers/3f2504e0-4f89-41d3-9a0c-0305e82c3301/1782511200000-cedula-frontal.jpg",
           token: "upload-token",
         },
         error: null,
@@ -72,18 +72,18 @@ describe("auth.service", () => {
       });
 
       const result = await authService.createSeniorDocumentUploadUrl({
-        email: "Senior.Passenger@example.com",
+        user_id: "3F2504E0-4F89-41D3-9A0C-0305E82C3301",
         file_name: "Cedula Frontal.JPG",
         content_type: "image/jpeg",
       });
 
       expect(from).toHaveBeenCalledWith("cedulas");
       expect(createSignedUploadUrl).toHaveBeenCalledWith(
-        "passengers/senior.passenger-example.com/1782511200000-cedula-frontal.jpg",
+        "passengers/3f2504e0-4f89-41d3-9a0c-0305e82c3301/1782511200000-cedula-frontal.jpg",
       );
       expect(result).toEqual({
         bucket: "cedulas",
-        path: "passengers/senior.passenger-example.com/1782511200000-cedula-frontal.jpg",
+        path: "passengers/3f2504e0-4f89-41d3-9a0c-0305e82c3301/1782511200000-cedula-frontal.jpg",
         signed_url: "https://storage.example.com/upload",
         token: "upload-token",
       });
@@ -103,7 +103,7 @@ describe("auth.service", () => {
 
       await expect(
         authService.createSeniorDocumentUploadUrl({
-          email: "senior.passenger@example.com",
+          user_id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
           file_name: "cedula.jpg",
           content_type: "image/jpeg",
         }),
