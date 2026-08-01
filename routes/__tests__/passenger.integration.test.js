@@ -8,6 +8,7 @@ jest.mock("../../database/supabaseClient", () => ({
 jest.mock("../../services/passenger.service", () => ({
   createPassengerIncident: jest.fn(),
   listPassengerIncidents: jest.fn(),
+  listMapIncidents: jest.fn(),
 }));
 
 const request = require("supertest");
@@ -34,7 +35,7 @@ describe("passenger incident routes", () => {
       passengerService.createPassengerIncident.mockResolvedValue({
         id: "incident-1",
         trip_id: validTripId,
-        type: "Delay",
+        type: "Traffic_Congestion",
         description: "Traffic jam near the main stop.",
         latitude: 9.9763,
         longitude: -84.8384,
@@ -46,20 +47,19 @@ describe("passenger incident routes", () => {
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: validTripId,
-          type: "Delay",
+          type: "Traffic_Congestion",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
         });
 
-      console.log("500 ERROR BODY:", response.body);
       expect(response.status).toBe(201);
       expect(response.body).toEqual({
         incident_id: "incident-1",
         incident: {
           id: "incident-1",
           trip_id: validTripId,
-          type: "Delay",
+          type: "Traffic_Congestion",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
@@ -70,7 +70,7 @@ describe("passenger incident routes", () => {
       expect(passengerService.createPassengerIncident).toHaveBeenCalledWith({
         trip_id: validTripId,
         user_id: "passenger-user-id",
-        type: "Delay",
+        type: "Traffic_Congestion",
         description: "Traffic jam near the main stop.",
         latitude: 9.9763,
         longitude: -84.8384,
@@ -83,7 +83,7 @@ describe("passenger incident routes", () => {
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: "invalid-id",
-          type: "Delay",
+          type: "Traffic_Congestion",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
@@ -93,13 +93,63 @@ describe("passenger incident routes", () => {
       expect(passengerService.createPassengerIncident).not.toHaveBeenCalled();
     });
 
+    test("normalizes the incident type casing before reaching the service", async () => {
+      passengerService.createPassengerIncident.mockResolvedValue({
+        id: "incident-3",
+        trip_id: validTripId,
+        type: "Traffic_Congestion",
+        description: "Traffic jam near the main stop.",
+        latitude: 9.9763,
+        longitude: -84.8384,
+        timestamp: "2026-06-20T10:00:00Z",
+      });
+
+      const response = await request(app)
+        .post("/api/passenger/incidents")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+        .send({
+          trip_id: validTripId,
+          type: "traffic_congestion",
+          description: "Traffic jam near the main stop.",
+          latitude: 9.9763,
+          longitude: -84.8384,
+        });
+
+      expect(response.status).toBe(201);
+      expect(passengerService.createPassengerIncident).toHaveBeenCalledWith({
+        trip_id: validTripId,
+        user_id: "passenger-user-id",
+        type: "Traffic_Congestion",
+        description: "Traffic jam near the main stop.",
+        latitude: 9.9763,
+        longitude: -84.8384,
+      });
+    });
+
+    test("returns 400 when incident type is outside the report_type enum", async () => {
+      const response = await request(app)
+        .post("/api/passenger/incidents")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+        .send({
+          trip_id: validTripId,
+          type: "banana",
+          description: "Traffic jam near the main stop.",
+          latitude: 9.9763,
+          longitude: -84.8384,
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe("INCIDENT_VALIDATION_FAILED");
+      expect(passengerService.createPassengerIncident).not.toHaveBeenCalled();
+    });
+
     test("returns 400 when latitude is out of range", async () => {
       const response = await request(app)
         .post("/api/passenger/incidents")
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: validTripId,
-          type: "Delay",
+          type: "Traffic_Congestion",
           latitude: 100,
           longitude: -84.8384,
         });
@@ -114,7 +164,7 @@ describe("passenger incident routes", () => {
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: validTripId,
-          type: "Delay",
+          type: "Traffic_Congestion",
           latitude: 9.9763,
           longitude: -84.8384,
           role: "Admin",
@@ -124,10 +174,26 @@ describe("passenger incident routes", () => {
       expect(passengerService.createPassengerIncident).not.toHaveBeenCalled();
     });
 
+    test("returns 400 when description is missing", async () => {
+      const response = await request(app)
+        .post("/api/passenger/incidents")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+        .send({
+          trip_id: validTripId,
+          type: "traffic",
+          latitude: 9.9763,
+          longitude: -84.8384,
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe("INCIDENT_VALIDATION_FAILED");
+      expect(passengerService.createPassengerIncident).not.toHaveBeenCalled();
+    });
+
     test("returns 401 when Authorization is missing", async () => {
       const response = await request(app).post("/api/passenger/incidents").send({
         trip_id: validTripId,
-        type: "Delay",
+        type: "Traffic_Congestion",
         latitude: 9.9763,
         longitude: -84.8384,
       });
@@ -144,7 +210,7 @@ describe("passenger incident routes", () => {
         {
           id: "incident-1",
           trip_id: validTripId,
-          type: "Delay",
+          type: "Traffic_Congestion",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
@@ -164,7 +230,7 @@ describe("passenger incident routes", () => {
         {
           id: "incident-1",
           trip_id: validTripId,
-          type: "Delay",
+          type: "Traffic_Congestion",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
@@ -206,6 +272,50 @@ describe("passenger incident routes", () => {
       expect(response.status).toBe(401);
       expect(response.body.error.code).toBe("AUTH_TOKEN_MISSING");
       expect(passengerService.listPassengerIncidents).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("GET /api/incidents/map", () => {
+    test("returns 200 with incidents from the last hour by default", async () => {
+      passengerService.listMapIncidents.mockResolvedValue([
+        {
+          id: "incident-map-1",
+          trip_id: validTripId,
+          type: "Accident",
+          description: "Collision near the stop.",
+          latitude: 9.9763,
+          longitude: -84.8384,
+          timestamp: "2026-07-01T10:00:00Z",
+        },
+      ]);
+
+      const response = await request(app)
+        .get("/api/incidents/map")
+        .query({ trip_id: validTripId });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveLength(1);
+      expect(passengerService.listMapIncidents).toHaveBeenCalledWith({
+        trip_id: validTripId,
+      });
+    });
+
+    test("returns 400 when trip id is missing", async () => {
+      const response = await request(app).get("/api/incidents/map");
+
+      expect(response.status).toBe(400);
+      expect(passengerService.listMapIncidents).not.toHaveBeenCalled();
+    });
+
+    test("works without Authorization header", async () => {
+      passengerService.listMapIncidents.mockResolvedValue([]);
+
+      const response = await request(app)
+        .get("/api/incidents/map")
+        .query({ trip_id: validTripId });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual([]);
     });
   });
 });

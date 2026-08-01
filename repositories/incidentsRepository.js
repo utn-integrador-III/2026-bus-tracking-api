@@ -7,4 +7,5 @@ const repository = new SupabasePassengerIncidentRepository();
 module.exports = {
   createPassengerIncident: repository.createPassengerIncident.bind(repository),
   findIncidentsByTripId: repository.findIncidentsByTripId.bind(repository),
+  findIncidentsByTripIdSince: repository.findIncidentsByTripIdSince.bind(repository),
 };
