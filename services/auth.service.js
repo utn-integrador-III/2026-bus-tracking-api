@@ -12,6 +12,7 @@ const { ERROR_CODES } = require("../constants/errorCodes");
 
 const DRIVER_ROLE = "Driver";
 const SENIOR_DOCUMENTS_BUCKET = "cedulas";
+const SENIOR_STATUS_PENDING = "pending";
 const SENIOR_DOCUMENT_CONTENT_TYPES = Object.freeze({
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -94,15 +95,16 @@ authService.registerPassenger = async function registerPassenger(payload) {
     }
   }
 
-  if (
-    payload.birth_date &&
-    typeof passengerRepository.updatePassengerProfile === "function"
-  ) {
+  if (typeof passengerRepository.updatePassengerProfile === "function") {
+    const profileUpdate = { senior_status: SENIOR_STATUS_PENDING };
+
+    if (payload.birth_date) {
+      profileUpdate.birth_date = payload.birth_date;
+    }
+
     const updatedPassenger = await passengerRepository.updatePassengerProfile(
       userId,
-      {
-        birth_date: payload.birth_date,
-      },
+      profileUpdate,
     );
 
     if (updatedPassenger) {
