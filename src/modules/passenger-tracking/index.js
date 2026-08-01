@@ -30,8 +30,9 @@ class PassengerTrackingController {
     const tripId = req.valid.params.id;
     const stopId = req.valid.body.stop_id;
 
-    const data = await this.trackingService.watchStop(userId, tripId, stopId);
-    res.status(HTTP_STATUS.CREATED).json(data);
+    const result = await this.trackingService.watchStop(userId, tripId, stopId);
+    const status = result.created ? HTTP_STATUS.CREATED : HTTP_STATUS.OK;
+    res.status(status).json(result.watch);
   }
 
   async previewActiveTrips(req, res) {

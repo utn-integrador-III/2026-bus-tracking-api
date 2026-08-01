@@ -10,25 +10,83 @@ const STOPS_TABLE = "stops";
 const COLUMNS = "id, user_id, trip_id, stop_id, status, created_at, alerted_at";
 
 class SupabaseTripWatchRepository {
-  async addWatch(userId, tripId, stopId) {
+  _writeError(error) {
+    return new AppError(
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      ERROR_CODES.DATABASE_ERROR,
+      "Error guardando el monitoreo de la parada.",
+      error.message,
+    );
+  }
+
+  async getStopById(stopId) {
     const { data, error } = await getServiceClient()
-      .from(TABLE)
-      .upsert(
-        { user_id: userId, trip_id: tripId, stop_id: stopId, status: "waiting" },
-        { onConflict: "user_id,trip_id" }
-      )
-      .select(COLUMNS)
-      .single();
+      .from(STOPS_TABLE)
+      .select("id, route_id, stop_order")
+      .eq("id", stopId)
+      .maybeSingle();
 
     if (error) {
       throw new AppError(
         HTTP_STATUS.INTERNAL_SERVER_ERROR,
         ERROR_CODES.DATABASE_ERROR,
-        "Error guardando el monitoreo de la parada.",
+        "Error obteniendo la parada solicitada.",
         error.message,
       );
     }
-    return data;
+    return data || null;
+  }
+
+  async findWatch(userId, tripId) {
+    const { data, error } = await getServiceClient()
+      .from(TABLE)
+      .select(COLUMNS)
+      .eq("user_id", userId)
+      .eq("trip_id", tripId)
+      .maybeSingle();
+
+    if (error) {
+      throw new AppError(
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        ERROR_CODES.DATABASE_ERROR,
+        "Error obteniendo el monitoreo existente.",
+        error.message,
+      );
+    }
+    return data || null;
+  }
+
+  async addWatch(userId, tripId, stopId) {
+    const existing = await this.findWatch(userId, tripId);
+
+    if (existing && existing.stop_id === stopId) {
+      return { watch: existing, created: false };
+    }
+
+    if (existing) {
+      const { data, error } = await getServiceClient()
+        .from(TABLE)
+        .update({ stop_id: stopId, status: "waiting", alerted_at: null })
+        .eq("id", existing.id)
+        .select(COLUMNS)
+        .single();
+
+      if (error) {
+        throw this._writeError(error);
+      }
+      return { watch: data, created: false };
+    }
+
+    const { data, error } = await getServiceClient()
+      .from(TABLE)
+      .insert({ user_id: userId, trip_id: tripId, stop_id: stopId, status: "waiting" })
+      .select(COLUMNS)
+      .single();
+
+    if (error) {
+      throw this._writeError(error);
+    }
+    return { watch: data, created: true };
   }
 
   async getActiveWatchesForTrip(tripId) {

@@ -36,11 +36,20 @@ function buildWatch(overrides = {}) {
 function buildRepository(overrides = {}) {
   return {
     addWatch: jest.fn().mockResolvedValue(undefined),
+    getStopById: jest.fn().mockResolvedValue({ id: "stop-1", route_id: "route-1", stop_order: 3 }),
+    findWatch: jest.fn().mockResolvedValue(null),
     getActiveWatchesForTrip: jest.fn().mockResolvedValue([]),
     markAsAlerted: jest.fn().mockResolvedValue(undefined),
     markAsPassed: jest.fn().mockResolvedValue(undefined),
     redirectWatch: jest.fn().mockResolvedValue(undefined),
     getNextStop: jest.fn().mockResolvedValue(null),
+    ...overrides,
+  };
+}
+
+function buildTripRepository(overrides = {}) {
+  return {
+    getTripById: jest.fn().mockResolvedValue({ id: "trip-1", route_id: "route-1" }),
     ...overrides,
   };
 }
@@ -53,19 +62,73 @@ function buildService(repo, realtime, extra = {}) {
   return new PassengerTrackingService({
     watchRepository: repo,
     realtimeManager: realtime,
+    tripRepository: buildTripRepository(),
     ...extra,
   });
 }
 
 describe("PassengerTrackingService.watchStop", () => {
-  it("delegates to the repository", async () => {
-    const repo = buildRepository({ addWatch: jest.fn().mockResolvedValue({ id: "watch-1" }) });
+  it("delegates to the repository when the stop belongs to the trip route", async () => {
+    const repo = buildRepository({
+      addWatch: jest.fn().mockResolvedValue({ watch: { id: "watch-1" }, created: true }),
+    });
     const service = buildService(repo, buildRealtime());
 
     const result = await service.watchStop("user-1", "trip-1", "stop-1");
 
     expect(repo.addWatch).toHaveBeenCalledWith("user-1", "trip-1", "stop-1");
-    expect(result).toEqual({ id: "watch-1" });
+    expect(result).toEqual({ watch: { id: "watch-1" }, created: true });
+  });
+
+  it("rejects a stop that belongs to a different route", async () => {
+    const repo = buildRepository({
+      getStopById: jest.fn().mockResolvedValue({ id: "stop-9", route_id: "route-B" }),
+    });
+    const service = buildService(repo, buildRealtime());
+
+    await expect(service.watchStop("user-1", "trip-1", "stop-9")).rejects.toMatchObject({
+      statusCode: 400,
+      code: "WATCH_STOP_ROUTE_MISMATCH",
+    });
+    expect(repo.addWatch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a stop that does not exist", async () => {
+    const repo = buildRepository({ getStopById: jest.fn().mockResolvedValue(null) });
+    const service = buildService(repo, buildRealtime());
+
+    await expect(service.watchStop("user-1", "trip-1", "stop-x")).rejects.toMatchObject({
+      statusCode: 400,
+      code: "WATCH_STOP_NOT_FOUND",
+    });
+    expect(repo.addWatch).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the trip does not exist", async () => {
+    const repo = buildRepository();
+    const service = buildService(repo, buildRealtime(), {
+      tripRepository: buildTripRepository({ getTripById: jest.fn().mockResolvedValue(null) }),
+    });
+
+    await expect(service.watchStop("user-1", "trip-x", "stop-1")).rejects.toMatchObject({
+      statusCode: 404,
+      code: "TRIP_NOT_FOUND",
+    });
+    expect(repo.getStopById).not.toHaveBeenCalled();
+    expect(repo.addWatch).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the trip has no route assigned", async () => {
+    const repo = buildRepository();
+    const service = buildService(repo, buildRealtime(), {
+      tripRepository: buildTripRepository({
+        getTripById: jest.fn().mockResolvedValue({ id: "trip-1", route_id: null }),
+      }),
+    });
+
+    await expect(service.watchStop("user-1", "trip-1", "stop-1")).rejects.toMatchObject({
+      code: "WATCH_STOP_ROUTE_MISMATCH",
+    });
   });
 });
 
