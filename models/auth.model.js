@@ -100,7 +100,6 @@ const oauthStartSchema = z
 
 const seniorDocumentUploadUrlSchema = z
   .object({
-    email,
     file_name: z.string().trim().min(1).max(255),
     content_type: seniorDocumentContentType,
   })
