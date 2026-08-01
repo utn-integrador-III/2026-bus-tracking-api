@@ -91,9 +91,21 @@ class TicketService {
     );
   }
 
+  async isSeniorPassenger(passengerId) {
+    try {
+      const passenger = await this.passengerRepository.findPassengerById(passengerId);
+      return passenger ? passenger.is_senior === true : false;
+    } catch (error) {
+      console.error(
+        "Error reading passenger profile during checkout:",
+        error.message,
+      );
+      return false;
+    }
+  }
+
   async checkout(passengerId, payload) {
-    const passenger = await this.passengerRepository.findPassengerById(passengerId);
-    const isSenior = passenger && passenger.is_senior === true;
+    const isSenior = await this.isSeniorPassenger(passengerId);
 
     if (!isSenior) {
       await wait(CHECKOUT_DELAY_MS);
