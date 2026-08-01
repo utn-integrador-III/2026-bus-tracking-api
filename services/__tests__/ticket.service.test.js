@@ -63,6 +63,7 @@ describe("TicketService", () => {
       trip_id: TRIP_ID,
       status: "Generated",
       payment_type: "Mock",
+      fare: 500,
       qr_payload: "pending",
     });
 
@@ -267,6 +268,7 @@ describe("TicketService", () => {
       trip_id: TRIP_ID,
       status: "Generated",
       payment_type: "Senior_Exemption",
+      fare: 0,
       qr_payload: "pending",
     });
 
