@@ -95,8 +95,18 @@ describe("admin senior verification routes", () => {
     expect(response.body.status).toBe("approved");
     expect(seniorVerificationService.approveRequest).toHaveBeenCalledWith(
       requestId,
-      {},
+      { reviewed_by: adminUser.id },
     );
+  });
+
+  test("PATCH /api/admin/senior-requests/:id/approve ignores a client supplied reviewed_by", async () => {
+    await request(app)
+      .patch(`/api/admin/senior-requests/${requestId}/approve`)
+      .set("Authorization", AUTH_HEADER)
+      .send({ reviewed_by: "4f2504e0-4f89-41d3-9a0c-0305e82c3302" })
+      .expect(400);
+
+    expect(seniorVerificationService.approveRequest).not.toHaveBeenCalled();
   });
 
   test("PATCH /api/admin/senior-requests/:id/reject rejects request", async () => {
@@ -122,6 +132,7 @@ describe("admin senior verification routes", () => {
       requestId,
       {
         rejection_reason: "The uploaded document is not readable.",
+        reviewed_by: adminUser.id,
       },
     );
   });
