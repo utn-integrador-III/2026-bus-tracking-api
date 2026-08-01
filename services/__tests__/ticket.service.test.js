@@ -1,6 +1,9 @@
 "use strict";
 
-const { TicketService } = require("../../src/modules/tickets");
+const {
+  TicketService,
+  createTicketModule,
+} = require("../../src/modules/tickets");
 
 const PASSENGER_ID = "15740dd7-9b7f-4838-aaf8-b59141e7edac";
 const TRIP_ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
@@ -266,6 +269,19 @@ describe("TicketService", () => {
     });
 
     expect(ticketRepository.createTicket).not.toHaveBeenCalled();
+  });
+
+  test("forwards the injected passengerRepository through createTicketModule", () => {
+    const ticketRepository = {};
+    const passengerRepository = { findPassengerById: jest.fn() };
+
+    const { ticketService } = createTicketModule({
+      ticketRepository,
+      passengerRepository,
+    });
+
+    expect(ticketService.ticketRepository).toBe(ticketRepository);
+    expect(ticketService.passengerRepository).toBe(passengerRepository);
   });
 
   test("bypasses payment delay and sets Senior_Exemption for senior passengers", async () => {
