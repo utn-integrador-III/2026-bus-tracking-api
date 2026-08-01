@@ -26,11 +26,17 @@ function wait(milliseconds) {
 }
 
 function getQrSecret() {
-  return (
-    process.env.TICKET_QR_SECRET ||
-    process.env.JWT_SECRET ||
-    "local-ticket-secret"
-  );
+  const secret = process.env.TICKET_QR_SECRET || process.env.JWT_SECRET_KEY;
+
+  if (!secret) {
+    throw new AppError(
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      ERROR_CODES.TICKET_QR_SECRET_MISSING,
+      "TICKET_QR_SECRET is not configured; tickets cannot be signed.",
+    );
+  }
+
+  return secret;
 }
 
 function generateSecureQrPayload(ticketId, passengerId, tripId, qrToken) {
