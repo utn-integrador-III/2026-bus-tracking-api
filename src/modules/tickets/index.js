@@ -18,6 +18,8 @@ const CHECKOUT_DELAY_MS = 1500;
 const TICKET_STATUS_GENERATED = "Generated";
 const TICKET_PAYMENT_TYPE_MOCK = "Mock";
 const TICKET_PAYMENT_TYPE_SENIOR = "Senior_Exemption";
+const SENIOR_EXEMPTION_FARE = 0;
+const MOCK_CHECKOUT_FARE = 500;
 
 function wait(milliseconds) {
   return new Promise((resolve) => {
@@ -104,6 +106,7 @@ class TicketService {
       trip_id: payload.trip_id,
       status: TICKET_STATUS_GENERATED,
       payment_type: isSenior ? TICKET_PAYMENT_TYPE_SENIOR : TICKET_PAYMENT_TYPE_MOCK,
+      fare: isSenior ? SENIOR_EXEMPTION_FARE : MOCK_CHECKOUT_FARE,
       qr_payload: "pending",
     });
 
