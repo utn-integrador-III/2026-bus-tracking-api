@@ -1,7 +1,7 @@
 "use strict";
 
 const PassengerTrackingService = require("../tracking.service");
-const { WATCH_STATUS, ALERT_EVENTS } = require("../tracking.service");
+const { WATCH_STATUS, ALERT_EVENTS, ALERT_FAILURE_STAGES } = require("../tracking.service");
 
 const STOP_LAT = 9.9281;
 const STOP_LNG = -84.0907;
@@ -269,6 +269,89 @@ describe("PassengerTrackingService.checkProximity - mixed and edge cases", () =>
 
     await expect(service.checkProximity("trip-1", STOP_LAT, STOP_LNG)).resolves.toBeUndefined();
     expect(realtime.emitUserAlert).not.toHaveBeenCalled();
+
+    spy.mockRestore();
+  });
+});
+
+describe("PassengerTrackingService.checkProximity - failure visibility", () => {
+  function captureErrorLog() {
+    return jest.spyOn(console, "error").mockImplementation(() => {});
+  }
+
+  it("logs a structured line with the trip id when the watch query fails", async () => {
+    const repo = buildRepository({
+      getActiveWatchesForTrip: jest.fn().mockRejectedValue(new Error("relation stops does not exist")),
+    });
+    const service = buildService(repo, buildRealtime());
+    const spy = captureErrorLog();
+
+    await service.checkProximity("trip-42", STOP_LAT, STOP_LNG);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    const logged = JSON.parse(spy.mock.calls[0][0]);
+    expect(logged).toMatchObject({
+      scope: "geofence_alerts",
+      level: "error",
+      event: ALERT_FAILURE_STAGES.WATCH_QUERY,
+      trip_id: "trip-42",
+      error: "relation stops does not exist",
+      failure_total: 1,
+    });
+
+    spy.mockRestore();
+  });
+
+  it("counts repeated failures so a dead alert path is measurable", async () => {
+    const repo = buildRepository({
+      getActiveWatchesForTrip: jest.fn().mockRejectedValue(new Error("db down")),
+    });
+    const service = buildService(repo, buildRealtime());
+    const spy = captureErrorLog();
+
+    await service.checkProximity("trip-1", STOP_LAT, STOP_LNG);
+    await service.checkProximity("trip-1", STOP_LAT, STOP_LNG);
+
+    const stats = service.getAlertFailureStats();
+    expect(stats.total).toBe(2);
+    expect(stats.byStage[ALERT_FAILURE_STAGES.WATCH_QUERY]).toBe(2);
+    expect(stats.lastFailure).toMatchObject({
+      stage: ALERT_FAILURE_STAGES.WATCH_QUERY,
+      trip_id: "trip-1",
+      message: "db down",
+    });
+
+    spy.mockRestore();
+  });
+
+  it("records a dispatch failure separately from a query failure", async () => {
+    const watch = buildWatch({ status: WATCH_STATUS.WAITING });
+    const repo = buildRepository({
+      getActiveWatchesForTrip: jest.fn().mockResolvedValue([watch]),
+      markAsAlerted: jest.fn().mockRejectedValue(new Error("update rejected")),
+    });
+    const service = buildService(repo, buildRealtime());
+    const spy = captureErrorLog();
+
+    await expect(service.checkProximity("trip-1", STOP_LAT, STOP_LNG)).resolves.toBeUndefined();
+
+    const stats = service.getAlertFailureStats();
+    expect(stats.total).toBe(1);
+    expect(stats.byStage[ALERT_FAILURE_STAGES.ALERT_DISPATCH]).toBe(1);
+    expect(stats.byStage[ALERT_FAILURE_STAGES.WATCH_QUERY]).toBeUndefined();
+
+    spy.mockRestore();
+  });
+
+  it("does not record a failure when there are simply no watchers", async () => {
+    const repo = buildRepository({ getActiveWatchesForTrip: jest.fn().mockResolvedValue([]) });
+    const service = buildService(repo, buildRealtime());
+    const spy = captureErrorLog();
+
+    await service.checkProximity("trip-1", STOP_LAT, STOP_LNG);
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(service.getAlertFailureStats().total).toBe(0);
 
     spy.mockRestore();
   });
