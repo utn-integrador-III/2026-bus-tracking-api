@@ -1,9 +1,9 @@
 "use strict";
 
-const { getServiceClient } = require("../../../database/supabaseClient");
-const AppError = require("../../../utils/AppError");
-const { HTTP_STATUS } = require("../../../constants/httpStatus");
-const { ERROR_CODES } = require("../../../constants/errorCodes");
+const { getServiceClient } = require("../../../../database/supabaseClient");
+const AppError = require("../../../../utils/AppError");
+const { HTTP_STATUS } = require("../../../../constants/httpStatus");
+const { ERROR_CODES } = require("../../../../constants/errorCodes");
 
 const TABLE = "reports";
 const COLUMNS =
