@@ -184,7 +184,7 @@ class TicketController {
 
     const tickets = await this.service.listByPassenger(passengerId);
 
-    res.status(HTTP_STATUS.OK || 200).json(tickets);
+    res.status(HTTP_STATUS.OK).json(tickets);
   }
 }
 
