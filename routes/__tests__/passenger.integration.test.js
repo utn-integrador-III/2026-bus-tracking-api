@@ -34,7 +34,7 @@ describe("passenger incident routes", () => {
       passengerService.createPassengerIncident.mockResolvedValue({
         id: "incident-1",
         trip_id: validTripId,
-        type: "traffic",
+        type: "Traffic_Congestion",
         description: "Traffic jam near the main stop.",
         latitude: 9.9763,
         longitude: -84.8384,
@@ -46,7 +46,7 @@ describe("passenger incident routes", () => {
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: validTripId,
-          type: "traffic",
+          type: "Traffic_Congestion",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
@@ -59,7 +59,7 @@ describe("passenger incident routes", () => {
         incident: {
           id: "incident-1",
           trip_id: validTripId,
-          type: "traffic",
+          type: "Traffic_Congestion",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
@@ -70,7 +70,7 @@ describe("passenger incident routes", () => {
       expect(passengerService.createPassengerIncident).toHaveBeenCalledWith({
         trip_id: validTripId,
         user_id: "passenger-user-id",
-        type: "traffic",
+        type: "Traffic_Congestion",
         description: "Traffic jam near the main stop.",
         latitude: 9.9763,
         longitude: -84.8384,
@@ -83,7 +83,7 @@ describe("passenger incident routes", () => {
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: "invalid-id",
-          type: "traffic",
+          type: "Traffic_Congestion",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
@@ -93,13 +93,46 @@ describe("passenger incident routes", () => {
       expect(passengerService.createPassengerIncident).not.toHaveBeenCalled();
     });
 
+    test("normalizes the incident type casing before reaching the service", async () => {
+      passengerService.createPassengerIncident.mockResolvedValue({
+        id: "incident-3",
+        trip_id: validTripId,
+        type: "Traffic_Congestion",
+        description: "Traffic jam near the main stop.",
+        latitude: 9.9763,
+        longitude: -84.8384,
+        timestamp: "2026-06-20T10:00:00Z",
+      });
+
+      const response = await request(app)
+        .post("/api/passenger/incidents")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+        .send({
+          trip_id: validTripId,
+          type: "traffic_congestion",
+          description: "Traffic jam near the main stop.",
+          latitude: 9.9763,
+          longitude: -84.8384,
+        });
+
+      expect(response.status).toBe(201);
+      expect(passengerService.createPassengerIncident).toHaveBeenCalledWith({
+        trip_id: validTripId,
+        user_id: "passenger-user-id",
+        type: "Traffic_Congestion",
+        description: "Traffic jam near the main stop.",
+        latitude: 9.9763,
+        longitude: -84.8384,
+      });
+    });
+
     test("returns 400 when latitude is out of range", async () => {
       const response = await request(app)
         .post("/api/passenger/incidents")
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: validTripId,
-          type: "traffic",
+          type: "Traffic_Congestion",
           latitude: 100,
           longitude: -84.8384,
         });
@@ -114,7 +147,7 @@ describe("passenger incident routes", () => {
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: validTripId,
-          type: "traffic",
+          type: "Traffic_Congestion",
           latitude: 9.9763,
           longitude: -84.8384,
           role: "Admin",
@@ -127,7 +160,7 @@ describe("passenger incident routes", () => {
     test("returns 401 when Authorization is missing", async () => {
       const response = await request(app).post("/api/passenger/incidents").send({
         trip_id: validTripId,
-        type: "traffic",
+        type: "Traffic_Congestion",
         latitude: 9.9763,
         longitude: -84.8384,
       });
@@ -144,7 +177,7 @@ describe("passenger incident routes", () => {
         {
           id: "incident-1",
           trip_id: validTripId,
-          type: "traffic",
+          type: "Traffic_Congestion",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
@@ -164,7 +197,7 @@ describe("passenger incident routes", () => {
         {
           id: "incident-1",
           trip_id: validTripId,
-          type: "traffic",
+          type: "Traffic_Congestion",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
