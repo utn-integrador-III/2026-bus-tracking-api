@@ -100,7 +100,9 @@ describe("passenger.service", () => {
         trip_id: validTripId,
       });
 
-      expect(incidentsRepository.findIncidentsByTripId).toHaveBeenCalledWith(validTripId);
+      expect(incidentsRepository.findIncidentsByTripId).toHaveBeenCalledWith(validTripId, {
+        since: expect.any(String),
+      });
       expect(result).toHaveLength(1);
       expect(result[0].type).toBe("traffic");
     });
