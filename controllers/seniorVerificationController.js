@@ -19,7 +19,10 @@ const getRequest = asyncHandler(async function getRequest(req, res) {
 const approveRequest = asyncHandler(async function approveRequest(req, res) {
   const result = await seniorVerificationService.approveRequest(
     req.valid.params.id,
-    req.valid.body,
+    {
+      ...req.valid.body,
+      reviewed_by: req.auth.userId,
+    },
   );
 
   res.status(HTTP_STATUS.OK).json(result);
@@ -28,7 +31,10 @@ const approveRequest = asyncHandler(async function approveRequest(req, res) {
 const rejectRequest = asyncHandler(async function rejectRequest(req, res) {
   const result = await seniorVerificationService.rejectRequest(
     req.valid.params.id,
-    req.valid.body,
+    {
+      ...req.valid.body,
+      reviewed_by: req.auth.userId,
+    },
   );
 
   res.status(HTTP_STATUS.OK).json(result);

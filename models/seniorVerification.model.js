@@ -16,15 +16,10 @@ const listSeniorRequestsQuerySchema = z
   })
   .strict();
 
-const approveSeniorRequestSchema = z
-  .object({
-    reviewed_by: z.string().uuid().optional(),
-  })
-  .strict();
+const approveSeniorRequestSchema = z.object({}).strict();
 
 const rejectSeniorRequestSchema = z
   .object({
-    reviewed_by: z.string().uuid().optional(),
     rejection_reason: z.string().trim().min(1).max(500),
   })
   .strict();
