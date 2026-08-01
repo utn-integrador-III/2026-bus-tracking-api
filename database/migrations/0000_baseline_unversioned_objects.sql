@@ -5,13 +5,14 @@
 -- already-deployed database is a no-op.
 --
 -- Numbered 0000 on purpose. These objects must exist before the migrations that already reference
--- them: 0004_create_scan_ticket_function.sql declares "returns setof public.tickets", and
+-- them: 0004_create_scan_ticket_function.sql declares "returns setof public.tickets",
+-- 0005_passenger_trip_watches.sql has a foreign key to public.stops (id), and
 -- 0006_ticket_payment_enum.sql alters public.payment_type. Appending the backfill at the end of the
--- sequence would leave a fresh environment unable to apply 0004.
+-- sequence would leave a fresh environment unable to apply 0004 or 0005.
 --
 -- Still not versioned anywhere and assumed to exist: public.users, public.passengers, public.trips,
--- public.routes, public.stops. Row level security policies for the tables below are not reproduced
--- here because the live policies could not be read; they need their own migration once dumped.
+-- public.routes. Row level security policies for the tables below are not reproduced here because
+-- the live policies could not be read; they need their own migration once dumped.
 
 do $do$
 begin
@@ -88,8 +89,46 @@ create table if not exists public.senior_verification_requests (
 create index if not exists idx_senior_verification_requests_status_created_at
   on public.senior_verification_requests (status, created_at desc);
 
+-- public.stops has no migration anywhere, yet 0005_passenger_trip_watches.sql declares a foreign key
+-- to public.stops (id), so the sequence cannot be replayed from scratch without it. Columns are taken
+-- from models/stopSchema.js and from the embed in SupabaseTripWatchRepository
+-- ("id, route_id, latitude, longitude, stop_order, geofence_radius_meters").
+--
+-- The table already exists in the deployed project, so "create table if not exists" is a no-op there.
+-- The separate "add column if not exists" below is what actually closes the live gap: it is the
+-- geofence_radius_meters column that PR #123 has to degrade around today.
+
+create table if not exists public.stops (
+  id uuid primary key default gen_random_uuid(),
+  route_id uuid not null references public.routes (id) on delete cascade,
+  name varchar(255) not null,
+  latitude numeric not null,
+  longitude numeric not null,
+  stop_order integer not null,
+  geofence_radius_meters integer not null default 500
+);
+
+alter table public.stops
+  add column if not exists geofence_radius_meters integer not null default 500;
+
+-- Added as a named constraint rather than inline so the fresh-replay path and the already-deployed
+-- path converge on the same shape. NOT VALID because the live rows cannot be inspected from here: it
+-- is enforced on every insert and update from now on, and can be promoted later with
+-- "alter table public.stops validate constraint stops_geofence_radius_meters_check;".
+
+alter table public.stops
+  drop constraint if exists stops_geofence_radius_meters_check;
+
+alter table public.stops
+  add constraint stops_geofence_radius_meters_check
+  check (geofence_radius_meters > 0)
+  not valid;
+
+create index if not exists idx_stops_route_id_stop_order
+  on public.stops (route_id, stop_order);
+
 alter table public.passengers
-  add column if not exists expo_push_token text;
+  add column if not exists expo_push_token varchar;
 
 alter table public.passengers
   add column if not exists birth_date date;
