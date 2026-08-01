@@ -75,6 +75,7 @@ function splitOrigins(value) {
 
 const env = Object.freeze({
   appEnv: readString("APP_ENV", "development"),
+  appDebug: readString("APP_DEBUG", "false") === "true",
   appHost: readString("APP_HOST", "0.0.0.0"),
   appPort: readInt("APP_PORT", 8000),
   corsOrigins: splitOrigins(readString("CORS_ORIGINS", "")),

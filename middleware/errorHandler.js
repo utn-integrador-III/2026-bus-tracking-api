@@ -12,7 +12,8 @@ function errorHandler(err, _req, res, _next) {
         message: err.message,
       },
     };
-    if (err.details !== undefined) {
+    const isServerError = Number(err.statusCode) >= HTTP_STATUS.INTERNAL_SERVER_ERROR;
+    if (err.details !== undefined && (!isServerError || env.appDebug)) {
       body.error.details = err.details;
     }
     return res.status(err.statusCode).json(body);
@@ -37,7 +38,7 @@ function errorHandler(err, _req, res, _next) {
       message: "Ocurrio un error interno inesperado.",
     },
   };
-  if (env.appEnv !== "production" && err) {
+  if (env.appDebug && env.appEnv !== "production" && err) {
     body.error.details = String(err.message || err);
   }
   return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(body);
