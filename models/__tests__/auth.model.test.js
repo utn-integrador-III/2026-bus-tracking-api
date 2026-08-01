@@ -235,7 +235,6 @@ describe("loginSchema", () => {
 describe("seniorDocumentUploadUrlSchema", () => {
   test("accepts a valid senior document upload payload", () => {
     const result = seniorDocumentUploadUrlSchema.safeParse({
-      email: "senior.passenger@example.com",
       file_name: "cedula-frontal.jpg",
       content_type: "image/jpeg",
     });
@@ -245,7 +244,6 @@ describe("seniorDocumentUploadUrlSchema", () => {
 
   test("rejects unsupported document content types", () => {
     const result = seniorDocumentUploadUrlSchema.safeParse({
-      email: "senior.passenger@example.com",
       file_name: "cedula.pdf",
       content_type: "application/pdf",
     });
@@ -253,9 +251,18 @@ describe("seniorDocumentUploadUrlSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  test("rejects unknown keys", () => {
+  test("rejects a client supplied email", () => {
     const result = seniorDocumentUploadUrlSchema.safeParse({
       email: "senior.passenger@example.com",
+      file_name: "cedula.jpg",
+      content_type: "image/jpeg",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects unknown keys", () => {
+    const result = seniorDocumentUploadUrlSchema.safeParse({
       file_name: "cedula.jpg",
       content_type: "image/jpeg",
       role: "Admin",
