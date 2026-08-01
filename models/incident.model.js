@@ -7,7 +7,7 @@ const latitude = z.number().min(-90).max(90);
 
 const tripId = z.string().uuid();
 const type = z.string().trim().min(1).max(80);
-const description = z.string().trim().max(500).optional();
+const description = z.string().trim().min(1).max(500);
 
 const createPassengerIncidentSchema = z
   .object({

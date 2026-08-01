@@ -124,6 +124,22 @@ describe("passenger incident routes", () => {
       expect(passengerService.createPassengerIncident).not.toHaveBeenCalled();
     });
 
+    test("returns 400 when description is missing", async () => {
+      const response = await request(app)
+        .post("/api/passenger/incidents")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+        .send({
+          trip_id: validTripId,
+          type: "traffic",
+          latitude: 9.9763,
+          longitude: -84.8384,
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe("INCIDENT_VALIDATION_FAILED");
+      expect(passengerService.createPassengerIncident).not.toHaveBeenCalled();
+    });
+
     test("returns 401 when Authorization is missing", async () => {
       const response = await request(app).post("/api/passenger/incidents").send({
         trip_id: validTripId,

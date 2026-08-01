@@ -7,7 +7,7 @@ async function createPassengerIncident(payload) {
     trip_id: payload.trip_id,
     user_id: payload.user_id,
     type: payload.type,
-    description: payload.description || null,
+    description: payload.description,
     latitude: payload.latitude,
     longitude: payload.longitude,
   });
