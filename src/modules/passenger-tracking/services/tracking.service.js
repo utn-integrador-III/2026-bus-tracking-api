@@ -19,6 +19,7 @@ class PassengerTrackingService {
   constructor(dependencies = {}) {
     this.watchRepository = dependencies.watchRepository;
     this.realtimeManager = dependencies.realtimeManager;
+    this.pushService = dependencies.pushService || null;
     this.defaultRadiusMeters = dependencies.defaultRadiusMeters || DEFAULT_RADIUS_METERS;
   }
 
@@ -62,7 +63,7 @@ class PassengerTrackingService {
     await this.watchRepository.markAsAlerted(watches.map((watch) => watch.id));
 
     for (const watch of watches) {
-      this._emitAlert(watch.user_id, ALERT_EVENTS.APPROACHING, {
+      await this._emitAlert(watch.user_id, ALERT_EVENTS.APPROACHING, {
         trip_id: watch.trip_id,
         stop_id: watch.stop_id,
       });
@@ -79,7 +80,7 @@ class PassengerTrackingService {
         await this.watchRepository.markAsPassed([watch.id]);
       }
 
-      this._emitAlert(watch.user_id, ALERT_EVENTS.PASSED, {
+      await this._emitAlert(watch.user_id, ALERT_EVENTS.PASSED, {
         trip_id: watch.trip_id,
         stop_id: watch.stop_id,
         redirected: Boolean(nextStop),
@@ -97,9 +98,14 @@ class PassengerTrackingService {
     return this.watchRepository.getNextStop(stop.route_id, stop.stop_order);
   }
 
-  _emitAlert(userId, event, payload) {
-    if (!this.realtimeManager) return;
-    this.realtimeManager.emitUserAlert(userId, event, payload);
+  async _emitAlert(userId, event, payload) {
+    if (this.realtimeManager) {
+      await this.realtimeManager.emitUserAlert(userId, event, payload);
+    }
+
+    if (this.pushService) {
+      await this.pushService.sendAlert(userId, event, payload);
+    }
   }
 }
 
