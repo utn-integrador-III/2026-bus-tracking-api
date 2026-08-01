@@ -92,6 +92,7 @@ const env = Object.freeze({
 
   telemetryUpdateIntervalSeconds: readInt("TELEMETRY_UPDATE_INTERVAL_SECONDS", 2),
   enableSupabaseRealtime: readString("ENABLE_SUPABASE_REALTIME", "true") === "true",
+  enableGoogleRoutes: readString("ENABLE_GOOGLE_ROUTES", "true") === "true",
 });
 
 function assertSupabaseConfig() {
