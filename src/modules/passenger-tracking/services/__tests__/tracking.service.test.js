@@ -282,3 +282,48 @@ describe("PassengerTrackingService.checkProximity - mixed and edge cases", () =>
     expect(repo.markAsAlerted).toHaveBeenCalledWith(["watch-1"]);
   });
 });
+
+describe("PassengerTrackingService.checkProximity - push dispatch", () => {
+  it("pushes bus_approaching alongside the realtime broadcast", async () => {
+    const watch = buildWatch({ status: WATCH_STATUS.WAITING });
+    const repo = buildRepository({ getActiveWatchesForTrip: jest.fn().mockResolvedValue([watch]) });
+    const realtime = buildRealtime();
+    const pushService = { sendAlert: jest.fn().mockResolvedValue(true) };
+    const service = buildService(repo, realtime, { pushService });
+
+    await service.checkProximity("trip-1", STOP_LAT, STOP_LNG);
+
+    expect(realtime.emitUserAlert).toHaveBeenCalledWith("user-1", ALERT_EVENTS.APPROACHING, expect.any(Object));
+    expect(pushService.sendAlert).toHaveBeenCalledWith("user-1", ALERT_EVENTS.APPROACHING, {
+      trip_id: "trip-1",
+      stop_id: "stop-1",
+    });
+  });
+
+  it("pushes bus_passed alongside the realtime broadcast", async () => {
+    const watch = buildWatch({ status: WATCH_STATUS.APPROACHING });
+    const repo = buildRepository({ getActiveWatchesForTrip: jest.fn().mockResolvedValue([watch]) });
+    const realtime = buildRealtime();
+    const pushService = { sendAlert: jest.fn().mockResolvedValue(true) };
+    const service = buildService(repo, realtime, { pushService });
+
+    await service.checkProximity("trip-1", FAR_LAT, FAR_LNG);
+
+    expect(pushService.sendAlert).toHaveBeenCalledWith(
+      "user-1",
+      ALERT_EVENTS.PASSED,
+      expect.objectContaining({ trip_id: "trip-1", stop_id: "stop-1" }),
+    );
+  });
+
+  it("still broadcasts over realtime when no push service is configured", async () => {
+    const watch = buildWatch({ status: WATCH_STATUS.WAITING });
+    const repo = buildRepository({ getActiveWatchesForTrip: jest.fn().mockResolvedValue([watch]) });
+    const realtime = buildRealtime();
+    const service = buildService(repo, realtime);
+
+    await service.checkProximity("trip-1", STOP_LAT, STOP_LNG);
+
+    expect(realtime.emitUserAlert).toHaveBeenCalledTimes(1);
+  });
+});
