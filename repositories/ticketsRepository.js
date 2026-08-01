@@ -7,7 +7,8 @@ const { HTTP_STATUS } = require("../constants/httpStatus");
 
 const TABLE = "tickets";
 const COLUMNS =
-  "id, passenger_id, trip_id, status, payment_type, generated_at, scanned_at, qr_token, scanned_by, qr_payload, created_at";
+  "id, passenger_id, trip_id, status, payment_type, fare, generated_at, scanned_at, qr_token, scanned_by, qr_payload, created_at";
+const STATUS_GENERATED = "Generated";
 
 let supabase = null;
 
@@ -90,6 +91,26 @@ class TicketsRepository {
     }
 
     return data;
+  }
+
+  async findGeneratedByPassengerAndTrip(passengerId, tripId) {
+    const client = getSupabaseClient();
+
+    const { data, error } = await client
+      .from(TABLE)
+      .select(COLUMNS)
+      .eq("passenger_id", passengerId)
+      .eq("trip_id", tripId)
+      .eq("status", STATUS_GENERATED)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      throw mapTicketError(error);
+    }
+
+    return data || null;
   }
 
   async findByPassengerId(passengerId) {
