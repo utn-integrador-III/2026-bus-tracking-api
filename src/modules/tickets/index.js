@@ -13,11 +13,17 @@ const { ROLES } = require("../../../constants/roles");
 const { checkoutTicketSchema, scanTicketSchema } = require("../../../models/ticket.model");
 const ticketsRepository = require("../../../repositories/ticketsRepository");
 const passengerRepository = require("../../../repositories/passengerRepository");
+const tripsRepository = require("../../../repositories/tripsRepository");
+const { TRIP_STATUS } = require("../../../constants/tripStatus");
 
 const CHECKOUT_DELAY_MS = 1500;
 const TICKET_STATUS_GENERATED = "Generated";
 const TICKET_PAYMENT_TYPE_MOCK = "Mock";
 const TICKET_PAYMENT_TYPE_SENIOR = "Senior_Exemption";
+const TRIP_STATUSES_WITHOUT_CHECKOUT = Object.freeze([
+  TRIP_STATUS.COMPLETED,
+  TRIP_STATUS.CANCELLED,
+]);
 const SENIOR_EXEMPTION_FARE = 0;
 const MOCK_CHECKOUT_FARE = 500;
 
@@ -71,6 +77,7 @@ class TicketService {
     this.ticketRepository = dependencies.ticketRepository || ticketsRepository;
     this.driverTripService = dependencies.driverTripService || null;
     this.passengerRepository = dependencies.passengerRepository || passengerRepository;
+    this.tripRepository = dependencies.tripRepository || tripsRepository;
   }
 
   async scanTicket(driverId, ticketId) {
@@ -113,6 +120,24 @@ class TicketService {
   }
 
   async checkout(passengerId, payload) {
+    const trip = await this.tripRepository.getTripById(payload.trip_id);
+
+    if (!trip) {
+      throw new AppError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_CODES.TRIP_NOT_FOUND,
+        "The requested trip does not exist.",
+      );
+    }
+
+    if (TRIP_STATUSES_WITHOUT_CHECKOUT.includes(trip.status)) {
+      throw new AppError(
+        HTTP_STATUS.CONFLICT,
+        ERROR_CODES.TICKET_TRIP_NOT_AVAILABLE,
+        `Tickets cannot be issued for a trip in status ${trip.status}.`,
+      );
+    }
+
     const existingTicket =
       await this.ticketRepository.findGeneratedByPassengerAndTrip(
         passengerId,

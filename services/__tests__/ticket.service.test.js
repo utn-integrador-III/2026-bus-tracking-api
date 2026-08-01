@@ -7,9 +7,16 @@ const TRIP_ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
 const TICKET_ID = "9f2504e0-4f89-41d3-9a0c-0305e82c3309";
 
 describe("TicketService", () => {
+  let tripRepository;
+
   beforeEach(() => {
     jest.useFakeTimers();
     process.env.TICKET_QR_SECRET = "test-ticket-secret";
+    tripRepository = {
+      getTripById: jest
+        .fn()
+        .mockResolvedValue({ id: TRIP_ID, status: "In_Progress" }),
+    };
   });
 
   afterEach(() => {
@@ -49,7 +56,11 @@ describe("TicketService", () => {
       findPassengerById: jest.fn().mockResolvedValue({ is_senior: false }),
     };
 
-    const service = new TicketService({ ticketRepository, passengerRepository });
+    const service = new TicketService({
+      ticketRepository,
+      passengerRepository,
+      tripRepository,
+    });
 
     const checkoutPromise = service.checkout(PASSENGER_ID, {
       trip_id: TRIP_ID,
@@ -170,7 +181,11 @@ describe("TicketService", () => {
 
     const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
 
-    const service = new TicketService({ ticketRepository, passengerRepository });
+    const service = new TicketService({
+      ticketRepository,
+      passengerRepository,
+      tripRepository,
+    });
 
     const checkoutPromise = service.checkout(PASSENGER_ID, {
       trip_id: TRIP_ID,
@@ -192,6 +207,65 @@ describe("TicketService", () => {
     expect(consoleSpy).toHaveBeenCalled();
 
     consoleSpy.mockRestore();
+  });
+
+  test.each(["Completed", "Cancelled"])(
+    "rejects checkout for a trip in status %s",
+    async (status) => {
+      tripRepository.getTripById.mockResolvedValue({ id: TRIP_ID, status });
+
+      const ticketRepository = {
+        createTicket: jest.fn(),
+        updateTicketQrPayload: jest.fn(),
+      };
+
+      const passengerRepository = {
+        findPassengerById: jest.fn(),
+      };
+
+      const service = new TicketService({
+        ticketRepository,
+        passengerRepository,
+        tripRepository,
+      });
+
+      await expect(
+        service.checkout(PASSENGER_ID, { trip_id: TRIP_ID }),
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        code: "TICKET_TRIP_NOT_AVAILABLE",
+      });
+
+      expect(ticketRepository.createTicket).not.toHaveBeenCalled();
+    },
+  );
+
+  test("rejects checkout when the trip does not exist", async () => {
+    tripRepository.getTripById.mockResolvedValue(null);
+
+    const ticketRepository = {
+      createTicket: jest.fn(),
+      updateTicketQrPayload: jest.fn(),
+    };
+
+    const passengerRepository = {
+      findPassengerById: jest.fn(),
+    };
+
+    const service = new TicketService({
+      ticketRepository,
+      passengerRepository,
+      tripRepository,
+    });
+
+    await expect(
+      service.checkout(PASSENGER_ID, { trip_id: TRIP_ID }),
+    ).rejects.toMatchObject({
+      statusCode: 404,
+      code: "TRIP_NOT_FOUND",
+    });
+
+    expect(ticketRepository.createTicket).not.toHaveBeenCalled();
   });
 
   test("bypasses payment delay and sets Senior_Exemption for senior passengers", async () => {
@@ -225,7 +299,11 @@ describe("TicketService", () => {
       ),
     };
 
-    const service = new TicketService({ ticketRepository, passengerRepository });
+    const service = new TicketService({
+      ticketRepository,
+      passengerRepository,
+      tripRepository,
+    });
 
     const ticket = await service.checkout(PASSENGER_ID, {
       trip_id: TRIP_ID,
