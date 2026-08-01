@@ -1,4 +1,4 @@
-create type public.report_type as enum ('Traffic', 'Accident', 'Overcrowding', 'Mechanical', 'Hazard', 'Other');
+create type public.report_type as enum ('Accident', 'Delay', 'Traffic_Congestion', 'Overcrowding', 'Road_Problem', 'Mechanical_Failure', 'Other');
 create type public.report_moderation_status as enum ('Pending', 'Validated', 'Discarded');
 
 create table if not exists public.reports (
