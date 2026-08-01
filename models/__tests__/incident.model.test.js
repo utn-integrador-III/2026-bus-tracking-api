@@ -11,7 +11,7 @@ describe("createPassengerIncidentSchema", () => {
   test("accepts a valid passenger incident payload", () => {
     const result = createPassengerIncidentSchema.safeParse({
       trip_id: validTripId,
-      type: "traffic",
+      type: "Delay",
       description: "Traffic jam near the main stop.",
       latitude: 9.9763,
       longitude: -84.8384,
@@ -23,7 +23,7 @@ describe("createPassengerIncidentSchema", () => {
   test("accepts a payload without description", () => {
     const result = createPassengerIncidentSchema.safeParse({
       trip_id: validTripId,
-      type: "overcrowding",
+      type: "Overcrowding",
       latitude: 9.9763,
       longitude: -84.8384,
     });
@@ -34,7 +34,7 @@ describe("createPassengerIncidentSchema", () => {
   test("rejects an invalid trip id", () => {
     const result = createPassengerIncidentSchema.safeParse({
       trip_id: "invalid-id",
-      type: "traffic",
+      type: "Delay",
       latitude: 9.9763,
       longitude: -84.8384,
     });
@@ -45,7 +45,7 @@ describe("createPassengerIncidentSchema", () => {
   test("rejects latitude out of range", () => {
     const result = createPassengerIncidentSchema.safeParse({
       trip_id: validTripId,
-      type: "traffic",
+      type: "Delay",
       latitude: 100,
       longitude: -84.8384,
     });
@@ -56,7 +56,7 @@ describe("createPassengerIncidentSchema", () => {
   test("rejects longitude out of range", () => {
     const result = createPassengerIncidentSchema.safeParse({
       trip_id: validTripId,
-      type: "traffic",
+      type: "Delay",
       latitude: 9.9763,
       longitude: -200,
     });
@@ -67,7 +67,7 @@ describe("createPassengerIncidentSchema", () => {
   test("rejects unknown keys", () => {
     const result = createPassengerIncidentSchema.safeParse({
       trip_id: validTripId,
-      type: "traffic",
+      type: "Delay",
       latitude: 9.9763,
       longitude: -84.8384,
       user_role: "Admin",

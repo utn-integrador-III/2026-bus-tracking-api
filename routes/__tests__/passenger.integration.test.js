@@ -34,7 +34,7 @@ describe("passenger incident routes", () => {
       passengerService.createPassengerIncident.mockResolvedValue({
         id: "incident-1",
         trip_id: validTripId,
-        type: "traffic",
+        type: "Delay",
         description: "Traffic jam near the main stop.",
         latitude: 9.9763,
         longitude: -84.8384,
@@ -46,7 +46,7 @@ describe("passenger incident routes", () => {
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: validTripId,
-          type: "traffic",
+          type: "Delay",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
@@ -59,7 +59,7 @@ describe("passenger incident routes", () => {
         incident: {
           id: "incident-1",
           trip_id: validTripId,
-          type: "traffic",
+          type: "Delay",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
@@ -70,7 +70,7 @@ describe("passenger incident routes", () => {
       expect(passengerService.createPassengerIncident).toHaveBeenCalledWith({
         trip_id: validTripId,
         user_id: "passenger-user-id",
-        type: "traffic",
+        type: "Delay",
         description: "Traffic jam near the main stop.",
         latitude: 9.9763,
         longitude: -84.8384,
@@ -83,7 +83,7 @@ describe("passenger incident routes", () => {
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: "invalid-id",
-          type: "traffic",
+          type: "Delay",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
@@ -99,7 +99,7 @@ describe("passenger incident routes", () => {
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: validTripId,
-          type: "traffic",
+          type: "Delay",
           latitude: 100,
           longitude: -84.8384,
         });
@@ -114,7 +114,7 @@ describe("passenger incident routes", () => {
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
         .send({
           trip_id: validTripId,
-          type: "traffic",
+          type: "Delay",
           latitude: 9.9763,
           longitude: -84.8384,
           role: "Admin",
@@ -127,7 +127,7 @@ describe("passenger incident routes", () => {
     test("returns 401 when Authorization is missing", async () => {
       const response = await request(app).post("/api/passenger/incidents").send({
         trip_id: validTripId,
-        type: "traffic",
+        type: "Delay",
         latitude: 9.9763,
         longitude: -84.8384,
       });
@@ -144,7 +144,7 @@ describe("passenger incident routes", () => {
         {
           id: "incident-1",
           trip_id: validTripId,
-          type: "traffic",
+          type: "Delay",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
@@ -164,7 +164,7 @@ describe("passenger incident routes", () => {
         {
           id: "incident-1",
           trip_id: validTripId,
-          type: "traffic",
+          type: "Delay",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,

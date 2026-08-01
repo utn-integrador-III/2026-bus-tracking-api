@@ -20,7 +20,7 @@ describe("passenger.service", () => {
       incidentsRepository.createPassengerIncident.mockResolvedValue({
         id: "incident-1",
         trip_id: validTripId,
-        type: "traffic",
+        type: "Delay",
         description: "Traffic jam near the main stop.",
         latitude: 9.9763,
         longitude: -84.8384,
@@ -30,7 +30,7 @@ describe("passenger.service", () => {
       const result = await passengerService.createPassengerIncident({
         trip_id: validTripId,
         user_id: "user-123",
-        type: "traffic",
+        type: "Delay",
         description: "Traffic jam near the main stop.",
         latitude: 9.9763,
         longitude: -84.8384,
@@ -39,21 +39,21 @@ describe("passenger.service", () => {
       expect(incidentsRepository.createPassengerIncident).toHaveBeenCalledWith({
         trip_id: validTripId,
         user_id: "user-123",
-        type: "traffic",
+        type: "Delay",
         description: "Traffic jam near the main stop.",
         latitude: 9.9763,
         longitude: -84.8384,
       });
 
       expect(result.id).toBe("incident-1");
-      expect(result.type).toBe("traffic");
+      expect(result.type).toBe("Delay");
     });
 
     test("creates a passenger incident with null description when description is missing", async () => {
       incidentsRepository.createPassengerIncident.mockResolvedValue({
         id: "incident-2",
         trip_id: validTripId,
-        type: "overcrowding",
+        type: "Overcrowding",
         description: null,
         latitude: 9.9763,
         longitude: -84.8384,
@@ -63,7 +63,7 @@ describe("passenger.service", () => {
       const result = await passengerService.createPassengerIncident({
         trip_id: validTripId,
         user_id: "user-456",
-        type: "overcrowding",
+        type: "Overcrowding",
         latitude: 9.9763,
         longitude: -84.8384,
       });
@@ -71,7 +71,7 @@ describe("passenger.service", () => {
       expect(incidentsRepository.createPassengerIncident).toHaveBeenCalledWith({
         trip_id: validTripId,
         user_id: "user-456",
-        type: "overcrowding",
+        type: "Overcrowding",
         description: null,
         latitude: 9.9763,
         longitude: -84.8384,
@@ -87,7 +87,7 @@ describe("passenger.service", () => {
         {
           id: "incident-1",
           trip_id: validTripId,
-          type: "traffic",
+          type: "Delay",
           description: "Traffic jam near the main stop.",
           latitude: 9.9763,
           longitude: -84.8384,
@@ -101,7 +101,7 @@ describe("passenger.service", () => {
 
       expect(incidentsRepository.findIncidentsByTripId).toHaveBeenCalledWith(validTripId);
       expect(result).toHaveLength(1);
-      expect(result[0].type).toBe("traffic");
+      expect(result[0].type).toBe("Delay");
     });
 
     test("returns an empty list when no incidents exist", async () => {
