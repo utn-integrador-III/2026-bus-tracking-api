@@ -294,6 +294,11 @@ describe("auth.service", () => {
         phone: "88882222",
       });
 
+      expect(passengerRepository.updatePassengerProfile).toHaveBeenCalledWith(validUserId, {
+        senior_status: "pending",
+        birth_date: "1960-05-10",
+      });
+
       expect(seniorVerificationRepository.createPendingRequest).toHaveBeenCalledWith({
         passenger_id: validUserId,
         document_image_bucket: "cedulas",
