@@ -8,6 +8,24 @@ const { ERROR_CODES } = require("../../../../constants/errorCodes");
 const TABLE = "passenger_trip_watches";
 const STOPS_TABLE = "stops";
 const COLUMNS = "id, user_id, trip_id, stop_id, status, created_at, alerted_at";
+const WATCH_COLUMNS = "id, user_id, trip_id, stop_id, status";
+
+const STOPS_EMBED_FULL = "stops ( id, route_id, latitude, longitude, stop_order, geofence_radius_meters )";
+const STOPS_EMBED_WITHOUT_RADIUS = "stops ( id, route_id, latitude, longitude, stop_order )";
+
+const UNDEFINED_COLUMN_CODES = new Set(["42703", "PGRST204"]);
+
+function isMissingRadiusColumn(error) {
+  if (!error) return false;
+  if (UNDEFINED_COLUMN_CODES.has(error.code)) return true;
+
+  const message = `${error.message || ""} ${error.details || ""}`;
+  return message.includes("geofence_radius_meters");
+}
+
+function logSchemaWarning(fields) {
+  console.warn(JSON.stringify({ scope: "geofence_alerts", level: "warn", ...fields }));
+}
 
 class SupabaseTripWatchRepository {
   async addWatch(userId, tripId, stopId) {
@@ -31,15 +49,27 @@ class SupabaseTripWatchRepository {
     return data;
   }
 
-  async getActiveWatchesForTrip(tripId) {
-    const { data, error } = await getServiceClient()
+  _selectActiveWatches(tripId, embed) {
+    return getServiceClient()
       .from(TABLE)
-      .select(`
-        id, user_id, trip_id, stop_id, status,
-        stops ( id, route_id, latitude, longitude, stop_order, geofence_radius_meters )
-      `)
+      .select(`${WATCH_COLUMNS}, ${embed}`)
       .eq("trip_id", tripId)
       .in("status", ["waiting", "alerted"]);
+  }
+
+  async getActiveWatchesForTrip(tripId) {
+    let { data, error } = await this._selectActiveWatches(tripId, STOPS_EMBED_FULL);
+
+    if (error && isMissingRadiusColumn(error)) {
+      logSchemaWarning({
+        event: "stops_geofence_radius_column_missing",
+        trip_id: tripId,
+        error: error.message,
+        fallback_radius_source: "service_default",
+      });
+
+      ({ data, error } = await this._selectActiveWatches(tripId, STOPS_EMBED_WITHOUT_RADIUS));
+    }
 
     if (error) {
       throw new AppError(
@@ -49,7 +79,21 @@ class SupabaseTripWatchRepository {
         error.message,
       );
     }
-    return data || [];
+
+    const watches = data || [];
+
+    for (const watch of watches) {
+      if (!watch.stops) {
+        logSchemaWarning({
+          event: "stop_embed_unresolved",
+          trip_id: tripId,
+          watch_id: watch.id,
+          stop_id: watch.stop_id,
+        });
+      }
+    }
+
+    return watches;
   }
 
   async getNextStop(routeId, currentStopOrder) {
