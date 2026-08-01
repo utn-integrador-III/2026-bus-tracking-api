@@ -6,6 +6,7 @@ const passengerIncidentsRouter = require("../../routes/passengerIncidentsRouter"
 const { createAdminRoutesRouter, createConsumerRoutesRouter } = require("../modules/routes");
 const { createAdminTripsRouter, createConsumerTripsRouter } = require("../modules/trips");
 const { createPassengerTrackingRouter } = require("../modules/passenger-tracking/index");
+const { createDriverIncidentsRouter } = require("../modules/driver-trips/index");
 
 function createApiRouter() {
   const router = express.Router();
@@ -17,6 +18,7 @@ function createApiRouter() {
   router.use("/admin/trips", createAdminTripsRouter());
   router.use("/passenger/trips", createConsumerTripsRouter());
   router.use("/passenger/tracking", createPassengerTrackingRouter());
+  router.use("/driver/incidents", createDriverIncidentsRouter());
 
   return router;
 }
