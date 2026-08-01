@@ -1,12 +1,13 @@
 "use strict";
 
 const { z } = require("zod");
+const { REPORT_TYPE_VALUES } = require("../constants/reportType");
 
 const longitude = z.number().min(-180).max(180);
 const latitude = z.number().min(-90).max(90);
 
 const tripId = z.string().uuid();
-const type = z.string().trim().min(1).max(80);
+const type = z.enum(REPORT_TYPE_VALUES);
 const description = z.string().trim().max(500).optional();
 
 const createPassengerIncidentSchema = z
