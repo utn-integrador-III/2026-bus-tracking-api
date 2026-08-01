@@ -12,6 +12,7 @@ const {
 } = require("../../../models/incident.model");
 const passengerIncidentsRepository = require("../../../repositories/incidentsRepository");
 const SupabasePassengerIncidentRepository = require("./infrastructure/SupabasePassengerIncidentRepository");
+const { incidentWindowStart } = require("../../../constants/incidentWindow");
 
 class PassengerIncidentRepository {
   async createPassengerIncident(_payload) {
@@ -39,7 +40,9 @@ class PassengerIncidentService {
   }
 
   async listPassengerIncidents(query) {
-    return this.passengerIncidentRepository.findIncidentsByTripId(query.trip_id);
+    return this.passengerIncidentRepository.findIncidentsByTripId(query.trip_id, {
+      since: incidentWindowStart(),
+    });
   }
 }
 
