@@ -194,6 +194,7 @@ function createTicketModule(dependencies = {}) {
     new TicketService({
       ticketRepository: dependencies.ticketRepository,
       driverTripService: dependencies.driverTripService,
+      passengerRepository: dependencies.passengerRepository,
     });
 
   const ticketController =
