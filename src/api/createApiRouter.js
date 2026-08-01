@@ -9,6 +9,7 @@ const {
   createPassengerTrackingRouter,
   createPassengerPushTokenRouter,
 } = require("../modules/passenger-tracking/index");
+const { createDriverIncidentsRouter } = require("../modules/driver-trips/index");
 
 function createApiRouter() {
   const router = express.Router();
@@ -21,6 +22,7 @@ function createApiRouter() {
   router.use("/passenger/trips", createConsumerTripsRouter());
   router.use("/passenger/tracking", createPassengerTrackingRouter());
   router.use("/passenger/push-token", createPassengerPushTokenRouter());
+  router.use("/driver/incidents", createDriverIncidentsRouter());
 
   return router;
 }
