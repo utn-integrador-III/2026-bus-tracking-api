@@ -18,6 +18,19 @@ function errorHandler(err, _req, res, _next) {
     return res.status(err.statusCode).json(body);
   }
 
+  const clientStatus = Number(err && (err.status || err.statusCode));
+  if (Number.isInteger(clientStatus) && clientStatus >= 400 && clientStatus < 500) {
+    const tooLarge = clientStatus === HTTP_STATUS.PAYLOAD_TOO_LARGE;
+    return res.status(clientStatus).json({
+      error: {
+        code: tooLarge ? ERROR_CODES.PAYLOAD_TOO_LARGE : ERROR_CODES.BAD_REQUEST,
+        message: tooLarge
+          ? "Request body exceeds the allowed size limit."
+          : "Invalid request payload.",
+      },
+    });
+  }
+
   const body = {
     error: {
       code: ERROR_CODES.INTERNAL_ERROR,
