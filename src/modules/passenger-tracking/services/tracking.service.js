@@ -1,6 +1,10 @@
 "use strict";
 
 const { haversineDistanceMeters } = require("../../../../utils/distance");
+const AppError = require("../../../../utils/AppError");
+const { HTTP_STATUS } = require("../../../../constants/httpStatus");
+const { ERROR_CODES } = require("../../../../constants/errorCodes");
+const tripsRepository = require("../../../../repositories/tripsRepository");
 
 const WATCH_STATUS = {
   WAITING: "waiting",
@@ -21,6 +25,7 @@ class PassengerTrackingService {
   constructor(dependencies = {}) {
     this.watchRepository = dependencies.watchRepository;
     this.realtimeManager = dependencies.realtimeManager;
+    this.tripRepository = dependencies.tripRepository || tripsRepository;
     this.pushService = dependencies.pushService || null;
     this.defaultRadiusMeters = dependencies.defaultRadiusMeters || DEFAULT_RADIUS_METERS;
     this.passedConfirmationSamples =
@@ -33,6 +38,33 @@ class PassengerTrackingService {
   }
 
   async watchStop(userId, tripId, stopId) {
+    const trip = await this.tripRepository.getTripById(tripId);
+    if (!trip) {
+      throw new AppError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_CODES.TRIP_NOT_FOUND,
+        "El viaje solicitado no existe.",
+      );
+    }
+
+    const stop = await this.watchRepository.getStopById(stopId);
+    if (!stop) {
+      throw new AppError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_CODES.WATCH_STOP_NOT_FOUND,
+        "La parada solicitada no existe.",
+      );
+    }
+
+    if (!trip.route_id || stop.route_id !== trip.route_id) {
+      throw new AppError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_CODES.WATCH_STOP_ROUTE_MISMATCH,
+        "La parada no pertenece a la ruta del viaje.",
+        { trip_route_id: trip.route_id || null, stop_route_id: stop.route_id || null },
+      );
+    }
+
     return this.watchRepository.addWatch(userId, tripId, stopId);
   }
 
