@@ -19,7 +19,11 @@ const incidentsRepository = require("../../../repositories/incidentsRepository")
 const realtimeManager = require("../../../realtime/index");
 const routesRepository = require("../../../repositories/routesRepository");
 const googleRoutesService = require("../../../services/googleRoutes.service");
-const { PassengerTrackingService, SupabaseTripWatchRepository } = require("../passenger-tracking/index");
+const {
+  PassengerTrackingService,
+  SupabaseTripWatchRepository,
+  ExpoPushService,
+} = require("../passenger-tracking/index");
 const { env } = require("../../../config/env");
 
 const ACTIVE_STATUSES = [TRIP_STATUS.IN_PROGRESS];
@@ -342,6 +346,7 @@ function createDriverTripModule(dependencies = {}) {
       trackingService: dependencies.trackingService || new PassengerTrackingService({
         watchRepository: new SupabaseTripWatchRepository(),
         realtimeManager: dependencies.realtimeManager || realtimeManager,
+        pushService: dependencies.pushService || new ExpoPushService(),
       }),
     });
   const driverTripController =
