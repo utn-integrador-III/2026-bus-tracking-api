@@ -14,12 +14,21 @@ const ALERT_EVENTS = {
 };
 
 const DEFAULT_RADIUS_METERS = 500;
+const DEFAULT_PASSED_CONFIRMATION_SAMPLES = 3;
+const DEFAULT_PASSED_EXIT_BUFFER_METERS = 150;
 
 class PassengerTrackingService {
   constructor(dependencies = {}) {
     this.watchRepository = dependencies.watchRepository;
     this.realtimeManager = dependencies.realtimeManager;
     this.defaultRadiusMeters = dependencies.defaultRadiusMeters || DEFAULT_RADIUS_METERS;
+    this.passedConfirmationSamples =
+      dependencies.passedConfirmationSamples || DEFAULT_PASSED_CONFIRMATION_SAMPLES;
+    this.passedExitBufferMeters =
+      dependencies.passedExitBufferMeters == null
+        ? DEFAULT_PASSED_EXIT_BUFFER_METERS
+        : dependencies.passedExitBufferMeters;
+    this.outOfRangeSamples = new Map();
   }
 
   async watchStop(userId, tripId, stopId) {
@@ -29,6 +38,9 @@ class PassengerTrackingService {
   async checkProximity(tripId, currentLat, currentLng) {
     try {
       const activeWatches = await this.watchRepository.getActiveWatchesForTrip(tripId);
+
+      this._pruneOutOfRangeSamples(tripId, activeWatches || []);
+
       if (!activeWatches || activeWatches.length === 0) return;
 
       const approaching = [];
@@ -42,10 +54,17 @@ class PassengerTrackingService {
         const distance = haversineDistanceMeters(currentLat, currentLng, stop.latitude, stop.longitude);
         const isInsideGeofence = distance <= radius;
 
+        const sampleKey = this._sampleKey(tripId, watch.id);
+
         if (watch.status === WATCH_STATUS.WAITING && isInsideGeofence) {
           approaching.push(watch);
-        } else if (watch.status === WATCH_STATUS.APPROACHING && !isInsideGeofence) {
-          passed.push(watch);
+        } else if (watch.status === WATCH_STATUS.APPROACHING) {
+          if (distance <= radius + this.passedExitBufferMeters) {
+            this.outOfRangeSamples.delete(sampleKey);
+          } else if (this._countOutOfRangeSample(sampleKey) >= this.passedConfirmationSamples) {
+            this.outOfRangeSamples.delete(sampleKey);
+            passed.push(watch);
+          }
         }
       }
 
@@ -56,8 +75,35 @@ class PassengerTrackingService {
     }
   }
 
+  _sampleKey(tripId, watchId) {
+    return `${tripId}|${watchId}`;
+  }
+
+  _countOutOfRangeSample(sampleKey) {
+    const next = (this.outOfRangeSamples.get(sampleKey) || 0) + 1;
+    this.outOfRangeSamples.set(sampleKey, next);
+    return next;
+  }
+
+  _pruneOutOfRangeSamples(tripId, activeWatches) {
+    if (this.outOfRangeSamples.size === 0) return;
+
+    const prefix = `${tripId}|`;
+    const activeKeys = new Set(activeWatches.map((watch) => this._sampleKey(tripId, watch.id)));
+
+    for (const sampleKey of this.outOfRangeSamples.keys()) {
+      if (sampleKey.startsWith(prefix) && !activeKeys.has(sampleKey)) {
+        this.outOfRangeSamples.delete(sampleKey);
+      }
+    }
+  }
+
   async _handleApproaching(watches) {
     if (watches.length === 0) return;
+
+    for (const watch of watches) {
+      this.outOfRangeSamples.delete(this._sampleKey(watch.trip_id, watch.id));
+    }
 
     await this.watchRepository.markAsAlerted(watches.map((watch) => watch.id));
 
