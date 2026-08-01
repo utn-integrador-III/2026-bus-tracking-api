@@ -32,6 +32,46 @@ describe("createPassengerIncidentSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  test("normalizes the casing of a known enum value", () => {
+    const result = createPassengerIncidentSchema.safeParse({
+      trip_id: validTripId,
+      type: "  traffic_congestion  ",
+      description: "Traffic jam near the main stop.",
+      latitude: 9.9763,
+      longitude: -84.8384,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data.type).toBe("Traffic_Congestion");
+  });
+
+  test("normalizes every deployed report type written in any casing", () => {
+    for (const value of REPORT_TYPE_VALUES) {
+      const result = createPassengerIncidentSchema.safeParse({
+        trip_id: validTripId,
+        type: value.toUpperCase(),
+        description: "Traffic jam near the main stop.",
+        latitude: 9.9763,
+        longitude: -84.8384,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data.type).toBe(value);
+    }
+  });
+
+  test("rejects a value that is not a member of the enum in any casing", () => {
+    const result = createPassengerIncidentSchema.safeParse({
+      trip_id: validTripId,
+      type: "traffic",
+      description: "Traffic jam near the main stop.",
+      latitude: 9.9763,
+      longitude: -84.8384,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   test("rejects a type outside the report_type enum", () => {
     const result = createPassengerIncidentSchema.safeParse({
       trip_id: validTripId,
