@@ -133,7 +133,11 @@ describe("TicketService", () => {
       findPassengerById: jest.fn().mockResolvedValue({ is_senior: false }),
     };
 
-    const service = new TicketService({ ticketRepository, passengerRepository });
+    const service = new TicketService({
+      ticketRepository,
+      passengerRepository,
+      tripRepository,
+    });
 
     await expect(
       service.checkout(PASSENGER_ID, { trip_id: TRIP_ID }),
@@ -164,6 +168,7 @@ describe("TicketService", () => {
     };
 
     const ticketRepository = {
+      findGeneratedByPassengerAndTrip: jest.fn().mockResolvedValue(null),
       createTicket: jest.fn().mockResolvedValue(draftTicket),
       updateTicketQrPayload: jest.fn().mockImplementation(
         (ticketId, qrPayload, qrToken) =>
@@ -203,6 +208,7 @@ describe("TicketService", () => {
       trip_id: TRIP_ID,
       status: "Generated",
       payment_type: "Mock",
+      fare: 500,
       qr_payload: "pending",
     });
 
