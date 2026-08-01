@@ -52,7 +52,6 @@ describe("passenger incident routes", () => {
           longitude: -84.8384,
         });
 
-      console.log("500 ERROR BODY:", response.body);
       expect(response.status).toBe(201);
       expect(response.body).toEqual({
         incident_id: "incident-1",
@@ -124,6 +123,23 @@ describe("passenger incident routes", () => {
         latitude: 9.9763,
         longitude: -84.8384,
       });
+    });
+
+    test("returns 400 when incident type is outside the report_type enum", async () => {
+      const response = await request(app)
+        .post("/api/passenger/incidents")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+        .send({
+          trip_id: validTripId,
+          type: "banana",
+          description: "Traffic jam near the main stop.",
+          latitude: 9.9763,
+          longitude: -84.8384,
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe("INCIDENT_VALIDATION_FAILED");
+      expect(passengerService.createPassengerIncident).not.toHaveBeenCalled();
     });
 
     test("returns 400 when latitude is out of range", async () => {

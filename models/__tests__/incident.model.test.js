@@ -72,6 +72,32 @@ describe("createPassengerIncidentSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  test("rejects a type outside the report_type enum", () => {
+    const result = createPassengerIncidentSchema.safeParse({
+      trip_id: validTripId,
+      type: "banana",
+      description: "Traffic jam near the main stop.",
+      latitude: 9.9763,
+      longitude: -84.8384,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test("accepts every deployed report type value", () => {
+    for (const value of REPORT_TYPE_VALUES) {
+      const result = createPassengerIncidentSchema.safeParse({
+        trip_id: validTripId,
+        type: value,
+        description: "Traffic jam near the main stop.",
+        latitude: 9.9763,
+        longitude: -84.8384,
+      });
+
+      expect(result.success).toBe(true);
+    }
+  });
+
   test("rejects an invalid trip id", () => {
     const result = createPassengerIncidentSchema.safeParse({
       trip_id: "invalid-id",
