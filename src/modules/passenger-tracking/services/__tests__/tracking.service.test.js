@@ -555,7 +555,7 @@ describe("PassengerTrackingService.checkProximity - push dispatch", () => {
     const repo = buildRepository({ getActiveWatchesForTrip: jest.fn().mockResolvedValue([watch]) });
     const realtime = buildRealtime();
     const pushService = { sendAlert: jest.fn().mockResolvedValue(true) };
-    const service = buildService(repo, realtime, { pushService });
+    const service = buildService(repo, realtime, { pushService, passedConfirmationSamples: 1 });
 
     await service.checkProximity("trip-1", FAR_LAT, FAR_LNG);
 
