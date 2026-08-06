@@ -37,8 +37,16 @@ const listPassengerIncidentsQuerySchema = z
   })
   .strict();
 
+const listMapIncidentsQuerySchema = z
+  .object({
+    trip_id: tripId,
+    since: z.string().datetime().optional(),
+  })
+  .strict();
+
 module.exports = {
   createPassengerIncidentSchema,
   listPassengerIncidentsQuerySchema,
+  listMapIncidentsQuerySchema,
   normalizeReportType,
 };

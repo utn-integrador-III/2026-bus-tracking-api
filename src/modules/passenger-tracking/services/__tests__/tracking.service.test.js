@@ -557,7 +557,7 @@ describe("PassengerTrackingService.checkProximity - push dispatch", () => {
     const pushService = { sendAlert: jest.fn().mockResolvedValue(true) };
     const service = buildService(repo, realtime, { pushService, passedConfirmationSamples: 1 });
 
-    await service.checkProximity("trip-1", FAR_LAT, FAR_LNG);
+    await reportOutOfRange(service, 3);
 
     expect(pushService.sendAlert).toHaveBeenCalledWith(
       "user-1",

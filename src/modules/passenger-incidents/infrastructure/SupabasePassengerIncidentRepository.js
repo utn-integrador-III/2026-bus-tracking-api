@@ -43,6 +43,20 @@ class SupabasePassengerIncidentRepository {
     }
     return data || [];
   }
+
+  async findIncidentsByTripIdSince(tripId, since) {
+    const { data, error } = await getServiceClient()
+      .from(TABLE)
+      .select(COLUMNS)
+      .eq("trip_id", tripId)
+      .gte("timestamp", since)
+      .order("timestamp", { ascending: false });
+
+    if (error) {
+      throw databaseError(error);
+    }
+    return data || [];
+  }
 }
 
 module.exports = SupabasePassengerIncidentRepository;

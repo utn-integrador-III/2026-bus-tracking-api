@@ -35,7 +35,23 @@ async function listPassengerIncidents(query) {
     .map(toPassengerFacingIncident);
 }
 
+async function listMapIncidents(query) {
+  const since = query.since
+    ? new Date(query.since).toISOString()
+    : new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  const rows = await incidentsRepository.findIncidentsByTripIdSince(
+    query.trip_id,
+    since,
+  );
+
+  return (rows || [])
+    .filter((row) => isVisibleToPassengers(row.moderation_status))
+    .map(toPassengerFacingIncident);
+}
+
 module.exports = {
   createPassengerIncident,
   listPassengerIncidents,
+  listMapIncidents,
 };
