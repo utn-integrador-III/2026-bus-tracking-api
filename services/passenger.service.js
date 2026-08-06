@@ -1,6 +1,7 @@
 "use strict";
 
 const incidentsRepository = require("../repositories/incidentsRepository");
+const { incidentWindowStart } = require("../constants/incidentWindow");
 const { isVisibleToPassengers } = require("../constants/reportModerationStatus");
 
 function toPassengerFacingIncident(row) {
@@ -25,7 +26,9 @@ async function createPassengerIncident(payload) {
 }
 
 async function listPassengerIncidents(query) {
-  const rows = await incidentsRepository.findIncidentsByTripId(query.trip_id);
+  const rows = await incidentsRepository.findIncidentsByTripId(query.trip_id, {
+    since: incidentWindowStart(),
+  });
 
   return (rows || [])
     .filter((row) => isVisibleToPassengers(row.moderation_status))
