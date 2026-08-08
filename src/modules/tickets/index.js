@@ -13,6 +13,7 @@ const ticketsRepository = require("../../../repositories/ticketsRepository");
 
 const CHECKOUT_DELAY_MS = 1500;
 const TICKET_STATUS_GENERATED = "Generated";
+const TICKET_PAYMENT_TYPE_MOCK = "Mock";
 
 function wait(milliseconds) {
   return new Promise((resolve) => {
@@ -21,10 +22,16 @@ function wait(milliseconds) {
 }
 
 function getQrSecret() {
-  return process.env.TICKET_QR_SECRET || process.env.JWT_SECRET || "local-ticket-secret";
+  return (
+    process.env.TICKET_QR_SECRET ||
+    process.env.JWT_SECRET ||
+    "local-ticket-secret"
+  );
 }
 
-function generateSecureQrPayload(ticketId, passengerId, tripId, qrToken) {  const issuedAt = new Date().toISOString();
+function generateSecureQrPayload(ticketId, passengerId, tripId, qrToken) {
+  const issuedAt = new Date().toISOString();
+
   const payload = {
     ticket_id: ticketId,
     passenger_id: passengerId,
@@ -56,36 +63,31 @@ class TicketService {
     await wait(CHECKOUT_DELAY_MS);
 
     const draftTicket = await this.ticketRepository.createTicket({
-     passenger_id: passengerId,
-     trip_id: payload.trip_id,
-     status: TICKET_STATUS_GENERATED,
-     payment_type: "Mock",
-     qr_payload: "pending",
+      passenger_id: passengerId,
+      trip_id: payload.trip_id,
+      status: TICKET_STATUS_GENERATED,
+      payment_type: TICKET_PAYMENT_TYPE_MOCK,
+      qr_payload: "pending",
     });
 
     const qrToken = crypto.randomBytes(32).toString("base64url");
 
     const qrPayload = generateSecureQrPayload(
-        draftTicket.id,
-        passengerId,
-        payload.trip_id,
-        qrToken,
+      draftTicket.id,
+      passengerId,
+      payload.trip_id,
+      qrToken,
     );
 
-    const ticket = await this.ticketRepository.updateTicketQrPayload(
-        draftTicket.id,
-        qrPayload,
-        qrToken,
+    return this.ticketRepository.updateTicketQrPayload(
+      draftTicket.id,
+      qrPayload,
+      qrToken,
     );
+  }
 
-    return {
-      id: ticket.id,
-      passenger_id: ticket.passenger_id,
-      trip_id: ticket.trip_id,
-      status: ticket.status,
-      qr_payload: ticket.qr_payload,
-      created_at: ticket.created_at,
-    };
+  async listByPassenger(passengerId) {
+    return this.ticketRepository.findByPassengerId(passengerId);
   }
 }
 
@@ -93,6 +95,7 @@ class TicketController {
   constructor(service) {
     this.service = service;
     this.checkout = asyncHandler(this.checkout.bind(this));
+    this.listMine = asyncHandler(this.listMine.bind(this));
   }
 
   async checkout(req, res) {
@@ -109,6 +112,22 @@ class TicketController {
     const ticket = await this.service.checkout(passengerId, req.valid.body);
 
     res.status(HTTP_STATUS.CREATED).json(ticket);
+  }
+
+  async listMine(req, res) {
+    const passengerId = req.auth.userId;
+
+    if (!passengerId) {
+      throw new AppError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_CODES.UNAUTHORIZED,
+        "Authenticated passenger is required.",
+      );
+    }
+
+    const tickets = await this.service.listByPassenger(passengerId);
+
+    res.status(HTTP_STATUS.OK || 200).json(tickets);
   }
 }
 
@@ -133,6 +152,8 @@ function createTicketsRouter(dependencies = {}) {
   const router = express.Router();
 
   router.use(requireAuth);
+
+  router.get("/my", ticketController.listMine);
 
   router.post(
     "/checkout",
