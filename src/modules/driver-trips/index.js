@@ -21,7 +21,12 @@ const incidentsRepository = require("../../../repositories/incidentsRepository")
 const realtimeManager = require("../../../realtime/index");
 const routesRepository = require("../../../repositories/routesRepository");
 const googleRoutesService = require("../../../services/googleRoutes.service");
-const { PassengerTrackingService, SupabaseTripWatchRepository } = require("../passenger-tracking/index");
+const {
+  PassengerTrackingService,
+  SupabaseTripWatchRepository,
+  ExpoPushService,
+} = require("../passenger-tracking/index");
+const { env } = require("../../../config/env");
 
 const ACTIVE_STATUSES = [TRIP_STATUS.IN_PROGRESS];
 const STARTABLE_STATUSES = [TRIP_STATUS.SCHEDULED, TRIP_STATUS.PENDING];
@@ -172,7 +177,30 @@ class DriverTripService {
       recorded_at: data.recorded_at || new Date().toISOString(),
     });
 
-    await this.realtimeManager.broadcastLocation(tripId, location);
+    let eta = null;
+    if (env.enableGoogleRoutes) {
+      try {
+        const route = await this.routesRepository.getRouteById(trip.route_id);
+        if (route && route.geometry_geojson) {
+          const coordinates =
+            route.geometry_geojson.type === "Feature"
+              ? route.geometry_geojson.geometry.coordinates
+              : route.geometry_geojson.coordinates;
+          if (coordinates && coordinates.length > 0) {
+            const dest = coordinates[coordinates.length - 1];
+            const routeData = await this.googleRoutesService.computeRoute({
+              origin: { latitude: data.latitude, longitude: data.longitude },
+              destination: { latitude: dest[1], longitude: dest[0] },
+            });
+            eta = routeData.duration;
+          }
+        }
+      } catch (err) {
+        console.error("Error computing ETA:", err.message);
+      }
+    }
+
+    await this.realtimeManager.broadcastLocation(tripId, location, eta);
 
     if (this.trackingService) {
       await this.trackingService.checkProximity(tripId, data.latitude, data.longitude);
@@ -320,6 +348,7 @@ function createDriverTripModule(dependencies = {}) {
       trackingService: dependencies.trackingService || new PassengerTrackingService({
         watchRepository: new SupabaseTripWatchRepository(),
         realtimeManager: dependencies.realtimeManager || realtimeManager,
+        pushService: dependencies.pushService || new ExpoPushService(),
       }),
     });
   const driverTripController =
@@ -374,6 +403,7 @@ function createDriverIncidentsRouter(dependencies = {}) {
     dependencies.driverIncidentService || new DriverIncidentService(dependencies);
   const driverIncidentController =
     dependencies.driverIncidentController || new DriverIncidentController(driverIncidentService);
+
   const router = express.Router();
 
   router.use(requireAuth, requireRole(ROLES.DRIVER));
@@ -390,9 +420,9 @@ function createDriverIncidentsRouter(dependencies = {}) {
 module.exports = {
   DriverTripService,
   DriverTripController,
-  createDriverTripModule,
-  createDriverTripsRouter,
   DriverIncidentService,
   DriverIncidentController,
+  createDriverTripModule,
+  createDriverTripsRouter,
   createDriverIncidentsRouter,
 };
