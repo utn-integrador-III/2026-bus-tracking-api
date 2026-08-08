@@ -82,6 +82,22 @@ class TicketsRepository {
     return data;
   }
 
+  async findByPassengerId(passengerId) {
+    const client = getSupabaseClient();
+
+    const { data, error } = await client
+      .from(TABLE)
+      .select(COLUMNS)
+      .eq("passenger_id", passengerId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw mapTicketError(error);
+    }
+
+    return data || [];
+  }
+
   async updateTicketQrPayload(ticketId, qrPayload, qrToken) {
     const client = getSupabaseClient();
 
