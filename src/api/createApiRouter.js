@@ -11,6 +11,13 @@ const {
 } = require("../modules/passenger-tracking/index");
 const { createDriverIncidentsRouter } = require("../modules/driver-trips/index");
 const mapIncidentsRouter = require("../../routes/mapIncidentsRouter");
+const {
+  createAdminBusesRouter,
+  createAdminStopsRouter,
+  createAdminIncidentsRouter,
+  createAdminTelemetryRouter,
+  createAdminUsersRouter,
+} = require("../modules/admin/index");
 
 function createApiRouter() {
   const router = express.Router();
@@ -25,6 +32,11 @@ function createApiRouter() {
   router.use("/passenger/push-token", createPassengerPushTokenRouter());
   router.use("/driver/incidents", createDriverIncidentsRouter());
   router.use("/incidents/map", mapIncidentsRouter);
+  router.use("/admin/buses", createAdminBusesRouter());
+  router.use("/admin/stops", createAdminStopsRouter());
+  router.use("/admin/incidents", createAdminIncidentsRouter());
+  router.use("/admin/telemetry", createAdminTelemetryRouter());
+  router.use("/admin/users", createAdminUsersRouter());
 
   return router;
 }
