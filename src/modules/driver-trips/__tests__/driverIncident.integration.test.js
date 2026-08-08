@@ -116,4 +116,38 @@ describe("POST /api/driver/incidents", () => {
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe("DRIVER_INCIDENT_VALIDATION_FAILED");
   });
+
+  test("rejects an incident type outside the report_type enum", async () => {
+    const response = await request(app)
+      .post("/api/driver/incidents")
+      .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+      .send(validBody({ type: "banana" }));
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("DRIVER_INCIDENT_VALIDATION_FAILED");
+  });
+
+  test("rejects a missing description", async () => {
+    const { description: _description, ...bodyWithoutDescription } = validBody();
+
+    const response = await request(app)
+      .post("/api/driver/incidents")
+      .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+      .send(bodyWithoutDescription);
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("DRIVER_INCIDENT_VALIDATION_FAILED");
+  });
+
+  test("normalizes the incident type casing to the enum value", async () => {
+    const response = await request(app)
+      .post("/api/driver/incidents")
+      .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+      .send(validBody({ type: "  mechanical_failure  " }));
+
+    expect(response.status).toBe(201);
+    expect(incidentsRepository.createPassengerIncident).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "Mechanical_Failure" }),
+    );
+  });
 });

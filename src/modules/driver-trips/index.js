@@ -13,6 +13,8 @@ const requireAuth = require("../../../middleware/requireAuth");
 const requireRole = require("../../../middleware/requireRole");
 const { idParamSchema } = require("../../../models/tripSchema");
 const { reportLocationSchema } = require("../../../models/driverTrip.model");
+const { normalizeReportType } = require("../../../models/incident.model");
+const { REPORT_TYPE_VALUES } = require("../../../constants/reportType");
 const tripsRepository = require("../../../repositories/tripsRepository");
 const locationRepository = require("../../../repositories/locationRepository");
 const incidentsRepository = require("../../../repositories/incidentsRepository");
@@ -37,8 +39,8 @@ const ASSIGNED_STATUSES = [
 const driverIncidentSchema = z
   .object({
     trip_id: z.string().uuid(),
-    type: z.string().trim().min(1).max(80),
-    description: z.string().trim().max(500).optional(),
+    type: z.preprocess(normalizeReportType, z.enum(REPORT_TYPE_VALUES)),
+    description: z.string().trim().min(1).max(500),
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
     speed: z.number().min(0).optional(),
