@@ -3,6 +3,7 @@
 const REPORT_MODERATION_STATUS = Object.freeze({
   PENDING: "pending",
   VALIDATED: "validated",
+  ARCHIVED: "archived",
   DISMISSED: "dismissed",
 });
 
@@ -10,7 +11,9 @@ const REPORT_MODERATION_STATUS_VALUES = Object.freeze(Object.values(REPORT_MODER
 
 const PASSENGER_VISIBLE_MODERATION_STATUSES = Object.freeze(
   REPORT_MODERATION_STATUS_VALUES.filter(
-    (status) => status !== REPORT_MODERATION_STATUS.DISMISSED,
+    (status) =>
+      status !== REPORT_MODERATION_STATUS.DISMISSED &&
+      status !== REPORT_MODERATION_STATUS.ARCHIVED,
   ),
 );
 

@@ -33,6 +33,12 @@ const updateTripSchema = z
     message: "Debe enviar al menos un campo para actualizar.",
   });
 
+const updateTripStatusSchema = z
+  .object({
+    status,
+  })
+  .strict();
+
 const idParamSchema = z
   .object({
     id: z.string().uuid(),
@@ -42,5 +48,6 @@ const idParamSchema = z
 module.exports = {
   createTripSchema,
   updateTripSchema,
+  updateTripStatusSchema,
   idParamSchema,
 };
