@@ -6,7 +6,7 @@ const { HTTP_STATUS } = require("../../../../constants/httpStatus");
 const { ERROR_CODES } = require("../../../../constants/errorCodes");
 
 const TABLE = "reports";
-const COLUMNS = "id, trip_id, type, description, latitude, longitude, timestamp";
+const COLUMNS = "id, trip_id, user_id, type, description, latitude, longitude, timestamp, moderation_status";
 
 function databaseError(error) {
   return new AppError(
@@ -36,6 +36,20 @@ class SupabasePassengerIncidentRepository {
       .from(TABLE)
       .select(COLUMNS)
       .eq("trip_id", tripId)
+      .order("timestamp", { ascending: false });
+
+    if (error) {
+      throw databaseError(error);
+    }
+    return data || [];
+  }
+
+  async findIncidentsByTripIdSince(tripId, since) {
+    const { data, error } = await getServiceClient()
+      .from(TABLE)
+      .select(COLUMNS)
+      .eq("trip_id", tripId)
+      .gte("timestamp", since)
       .order("timestamp", { ascending: false });
 
     if (error) {
