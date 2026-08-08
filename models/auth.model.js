@@ -23,10 +23,7 @@ function isRealCalendarDate(dateStr) {
 function isFutureDate(dateStr) {
   const date = new Date(dateStr + "T00:00:00Z");
   const today = new Date();
-  const todayUTC = new Date(
-    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
-  );
-
+  const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
   return date > todayUTC;
 }
 
@@ -35,25 +32,17 @@ function calculateAge(dateStr) {
   const today = new Date();
   let age = today.getUTCFullYear() - birth.getUTCFullYear();
   const monthDiff = today.getUTCMonth() - birth.getUTCMonth();
-
   if (monthDiff < 0 || (monthDiff === 0 && today.getUTCDate() < birth.getUTCDate())) {
     age--;
   }
-
   return age;
 }
 
 const birthDate = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, {
-    message: "birth_date must use YYYY-MM-DD format.",
-  })
-  .refine(isRealCalendarDate, {
-    message: "birth_date must be a real calendar date.",
-  })
-  .refine((value) => !isFutureDate(value), {
-    message: "birth_date cannot be in the future.",
-  });
+  .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "birth_date must use YYYY-MM-DD format." })
+  .refine((val) => isRealCalendarDate(val), { message: "birth_date must be a real calendar date." })
+  .refine((val) => !isFutureDate(val), { message: "birth_date cannot be in the future." });
 
 const registerPassengerSchema = z
   .object({
@@ -111,7 +100,6 @@ const oauthStartSchema = z
 
 const seniorDocumentUploadUrlSchema = z
   .object({
-    email,
     file_name: z.string().trim().min(1).max(255),
     content_type: seniorDocumentContentType,
   })

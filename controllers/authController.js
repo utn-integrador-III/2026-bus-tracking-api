@@ -8,17 +8,17 @@ const { HTTP_STATUS } = require("../constants/httpStatus");
 const authController = new AuthController(authService);
 
 authController.loginDriver = asyncHandler(async function loginDriver(req, res) {
-  const result = await authService.loginDriver(req.valid.body, {
-    ipAddress: req.ip,
-    userAgent: req.get("user-agent") ?? null,
-  });
+  const result = await authService.loginDriver(req.valid.body, authController.buildRequestContext(req));
 
   res.status(HTTP_STATUS.OK).json(result);
 });
 
 authController.createSeniorDocumentUploadUrl = asyncHandler(
   async function createSeniorDocumentUploadUrl(req, res) {
-    const result = await authService.createSeniorDocumentUploadUrl(req.valid.body);
+    const result = await authService.createSeniorDocumentUploadUrl({
+      ...req.valid.body,
+      user_id: req.auth.userId,
+    });
 
     res.status(HTTP_STATUS.OK).json(result);
   },
