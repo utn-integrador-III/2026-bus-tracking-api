@@ -1,6 +1,9 @@
 "use strict";
 
 const { z } = require("zod");
+const {
+  REPORT_MODERATION_STATUS_VALUES,
+} = require("../constants/reportModerationStatus");
 
 const idParamSchema = z
   .object({
@@ -27,13 +30,13 @@ const stopSchema = z
 
 const listIncidentsQuerySchema = z
   .object({
-    status: z.enum(["Pending", "Validated", "Discarded"]).optional(),
+    status: z.enum(REPORT_MODERATION_STATUS_VALUES).optional(),
   })
   .strict();
 
 const moderateIncidentSchema = z
   .object({
-    moderation_status: z.enum(["Validated", "Discarded"]),
+    moderation_status: z.enum(REPORT_MODERATION_STATUS_VALUES),
   })
   .strict();
 

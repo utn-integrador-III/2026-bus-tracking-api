@@ -1,4 +1,4 @@
-"use strict";
+﻿"use strict";
 
 jest.mock("../../database/supabaseClient", () => ({
   verifyAccessToken: jest.fn(),
@@ -48,7 +48,7 @@ function mockRepository() {
       latitude: 9.9763,
       longitude: -84.8384,
       timestamp: "2026-06-20T10:00:00Z",
-      moderation_status: "Pending",
+      moderation_status: "pending",
     },
   ]);
   prototype.getIncidentById.mockResolvedValue({
@@ -60,7 +60,7 @@ function mockRepository() {
     latitude: 9.9763,
     longitude: -84.8384,
     timestamp: "2026-06-20T10:00:00Z",
-    moderation_status: "Pending",
+    moderation_status: "pending",
   });
   prototype.setIncidentModeration.mockResolvedValue({
     id: "incident-1",
@@ -71,7 +71,7 @@ function mockRepository() {
     latitude: 9.9763,
     longitude: -84.8384,
     timestamp: "2026-06-20T10:00:00Z",
-    moderation_status: "Validated",
+    moderation_status: "validated",
   });
   prototype.getTelemetryHistory.mockResolvedValue([
     {
@@ -205,7 +205,7 @@ describe("admin routes", () => {
   describe("GET /api/admin/incidents", () => {
     test("returns 200 with incidents, optionally filtered by status", async () => {
       const response = await request(app)
-        .get("/api/admin/incidents?status=Pending")
+        .get("/api/admin/incidents?status=pending")
         .set("Authorization", `Bearer ${AUTH_TOKEN}`);
 
       expect(response.status).toBe(200);
@@ -219,7 +219,7 @@ describe("admin routes", () => {
           latitude: 9.9763,
           longitude: -84.8384,
           timestamp: "2026-06-20T10:00:00Z",
-          moderation_status: "Pending",
+          moderation_status: "pending",
         },
       ]);
     });
@@ -238,13 +238,13 @@ describe("admin routes", () => {
       const response = await request(app)
         .put("/api/admin/incidents/3f2504e0-4f89-41d3-9a0c-0305e82c3301")
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
-        .send({ moderation_status: "Validated" });
+        .send({ moderation_status: "validated" });
 
       expect(response.status).toBe(200);
-      expect(response.body.moderation_status).toBe("Validated");
+      expect(response.body.moderation_status).toBe("validated");
       expect(SupabaseAdminRepository.prototype.setIncidentModeration).toHaveBeenCalledWith(
         "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
-        "Validated",
+        "validated",
         ADMIN_ID,
       );
     });
@@ -255,7 +255,7 @@ describe("admin routes", () => {
       const response = await request(app)
         .put("/api/admin/incidents/3f2504e0-4f89-41d3-9a0c-0305e82c3301")
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
-        .send({ moderation_status: "Discarded" });
+        .send({ moderation_status: "dismissed" });
 
       expect(response.status).toBe(404);
     });
@@ -311,3 +311,4 @@ describe("admin routes", () => {
     });
   });
 });
+
