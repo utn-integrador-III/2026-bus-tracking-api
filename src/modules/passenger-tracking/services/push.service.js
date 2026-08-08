@@ -56,7 +56,7 @@ class ExpoPushService {
       return false;
     }
 
-    let token = null;
+    let token;
     try {
       token = await this._resolveToken(userId);
     } catch (err) {

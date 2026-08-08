@@ -151,7 +151,7 @@ async function createUserProfile(payload) {
 async function updateUserProfile(id, payload) {
   const { userPayload, rolePayload } = splitUserPayload(payload);
 
-  let user = null;
+  let user;
 
   if (Object.keys(userPayload).length > 0) {
     const { data, error } = await getServiceClient()
