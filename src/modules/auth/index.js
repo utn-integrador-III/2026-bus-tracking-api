@@ -258,7 +258,7 @@ class AuthService {
       throw new AppError(
         HTTP_STATUS.FORBIDDEN,
         ERROR_CODES.AUTH_ADMIN_REQUIRED,
-        "This interface is restricted to pre-verified administrators.",
+        "Esta consola es solo para cuentas de administrador.",
       );
     }
     return result;
