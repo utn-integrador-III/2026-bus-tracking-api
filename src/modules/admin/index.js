@@ -13,11 +13,16 @@ const {
   idParamSchema,
   listStopsQuerySchema,
   stopSchema,
+  updateStopSchema,
   listIncidentsQuerySchema,
   moderateIncidentSchema,
   telemetryHistoryQuerySchema,
   listUsersQuerySchema,
 } = require("../../../models/admin.model");
+const {
+  ADMIN_TO_DB_MODERATION_STATUS,
+  DB_TO_ADMIN_MODERATION_STATUS,
+} = require("../../../constants/adminReportModerationStatus");
 const SupabaseAdminRepository = require("./infrastructure/SupabaseAdminRepository");
 
 class AdminRepository {
@@ -29,8 +34,16 @@ class AdminRepository {
     throw new Error("AdminRepository.listStops must be implemented.");
   }
 
+  async getStopById(_id) {
+    throw new Error("AdminRepository.getStopById must be implemented.");
+  }
+
   async createStop(_payload) {
     throw new Error("AdminRepository.createStop must be implemented.");
+  }
+
+  async updateStop(_id, _payload) {
+    throw new Error("AdminRepository.updateStop must be implemented.");
   }
 
   async deleteStop(_id) {
@@ -51,6 +64,10 @@ class AdminRepository {
 
   async getTelemetryHistory(_tripId, _startTime, _endTime) {
     throw new Error("AdminRepository.getTelemetryHistory must be implemented.");
+  }
+
+  async getCurrentTelemetry() {
+    throw new Error("AdminRepository.getCurrentTelemetry must be implemented.");
   }
 
   async listUsers(_role) {
@@ -99,7 +116,7 @@ class AdminPresenter {
       latitude: Number(row.latitude),
       longitude: Number(row.longitude),
       timestamp: row.timestamp,
-      moderation_status: row.moderation_status,
+      status: DB_TO_ADMIN_MODERATION_STATUS[row.moderation_status] || row.moderation_status,
     };
   }
 
@@ -115,12 +132,29 @@ class AdminPresenter {
       longitude: Number(row.longitude),
       speed: row.speed,
       heading: row.heading,
-      recorded_at: row.recorded_at,
+      timestamp: row.recorded_at,
     };
   }
 
   presentTelemetryHistory(rows) {
     return rows.map((row) => this.presentTelemetryPoint(row));
+  }
+
+  presentCurrentTelemetry(row) {
+    return {
+      trip_id: row.trip_id,
+      route_id: row.route_id,
+      status: row.status,
+      latitude: Number(row.latitude),
+      longitude: Number(row.longitude),
+      speed: row.speed,
+      heading: row.heading,
+      timestamp: row.recorded_at,
+    };
+  }
+
+  presentCurrentTelemetryList(rows) {
+    return rows.map((row) => this.presentCurrentTelemetry(row));
   }
 
   presentUser(row) {
@@ -207,6 +241,19 @@ class AdminService {
     });
   }
 
+  async updateStop(id, payload) {
+    const existing = await this.adminRepository.getStopById(id);
+    if (!existing) {
+      throw this.stopNotFound();
+    }
+
+    const updated = await this.adminRepository.updateStop(id, payload);
+    if (!updated) {
+      throw this.stopNotFound();
+    }
+    return updated;
+  }
+
   async deleteStop(id) {
     const existing = await this.adminRepository.deleteStop(id);
     if (!existing) {
@@ -216,10 +263,11 @@ class AdminService {
   }
 
   async listIncidents(status) {
-    return this.adminRepository.listIncidents(status);
+    const dbStatus = status ? ADMIN_TO_DB_MODERATION_STATUS[status] : undefined;
+    return this.adminRepository.listIncidents(dbStatus);
   }
 
-  async moderateIncident(id, moderationStatus, moderatorId) {
+  async moderateIncident(id, status, moderatorId) {
     const existing = await this.adminRepository.getIncidentById(id);
     if (!existing) {
       throw this.incidentNotFound();
@@ -227,7 +275,7 @@ class AdminService {
 
     const updated = await this.adminRepository.setIncidentModeration(
       id,
-      moderationStatus,
+      ADMIN_TO_DB_MODERATION_STATUS[status],
       moderatorId,
     );
     if (!updated) {
@@ -238,6 +286,10 @@ class AdminService {
 
   async getTelemetryHistory(tripId, startTime, endTime) {
     return this.adminRepository.getTelemetryHistory(tripId, startTime, endTime);
+  }
+
+  async getCurrentTelemetry() {
+    return this.adminRepository.getCurrentTelemetry();
   }
 
   async listUsers(role) {
@@ -252,10 +304,12 @@ class AdminController {
     this.listBuses = asyncHandler(this.listBuses.bind(this));
     this.listStops = asyncHandler(this.listStops.bind(this));
     this.createStop = asyncHandler(this.createStop.bind(this));
+    this.updateStop = asyncHandler(this.updateStop.bind(this));
     this.deleteStop = asyncHandler(this.deleteStop.bind(this));
     this.listIncidents = asyncHandler(this.listIncidents.bind(this));
     this.moderateIncident = asyncHandler(this.moderateIncident.bind(this));
     this.getTelemetryHistory = asyncHandler(this.getTelemetryHistory.bind(this));
+    this.getCurrentTelemetry = asyncHandler(this.getCurrentTelemetry.bind(this));
     this.listUsers = asyncHandler(this.listUsers.bind(this));
   }
 
@@ -274,6 +328,11 @@ class AdminController {
     res.status(HTTP_STATUS.CREATED).json(this.adminPresenter.created(row));
   }
 
+  async updateStop(req, res) {
+    const row = await this.adminService.updateStop(req.valid.params.id, req.valid.body);
+    res.status(HTTP_STATUS.OK).json(this.adminPresenter.presentStop(row));
+  }
+
   async deleteStop(req, res) {
     await this.adminService.deleteStop(req.valid.params.id);
     res.status(HTTP_STATUS.OK).json(this.adminPresenter.deleted());
@@ -287,7 +346,7 @@ class AdminController {
   async moderateIncident(req, res) {
     const row = await this.adminService.moderateIncident(
       req.valid.params.id,
-      req.valid.body.moderation_status,
+      req.valid.body.status,
       req.auth.userId,
     );
     res.status(HTTP_STATUS.OK).json(this.adminPresenter.presentIncident(row));
@@ -300,6 +359,11 @@ class AdminController {
       req.valid.query.end_time,
     );
     res.status(HTTP_STATUS.OK).json(this.adminPresenter.presentTelemetryHistory(rows));
+  }
+
+  async getCurrentTelemetry(_req, res) {
+    const rows = await this.adminService.getCurrentTelemetry();
+    res.status(HTTP_STATUS.OK).json(this.adminPresenter.presentCurrentTelemetryList(rows));
   }
 
   async listUsers(req, res) {
@@ -349,6 +413,11 @@ function createAdminStopsRouter(dependencies = {}) {
     validate({ body: stopSchema }, validationCode),
     adminController.createStop,
   );
+  router.put(
+    "/:id",
+    validate({ params: idParamSchema, body: updateStopSchema }, validationCode),
+    adminController.updateStop,
+  );
   router.delete(
     "/:id",
     validate({ params: idParamSchema }, validationCode),
@@ -395,6 +464,8 @@ function createAdminTelemetryRouter(dependencies = {}) {
     ),
     adminController.getTelemetryHistory,
   );
+
+  router.get("/current", adminController.getCurrentTelemetry);
 
   return router;
 }

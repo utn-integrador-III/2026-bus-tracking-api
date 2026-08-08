@@ -37,6 +37,24 @@ function mockRepository() {
     },
   ]);
   prototype.createStop.mockResolvedValue({ id: "stop-2" });
+  prototype.getStopById.mockResolvedValue({
+    id: "stop-1",
+    route_id: ROUTE_ID,
+    name: "Parada Central",
+    latitude: 9.9763,
+    longitude: -84.8384,
+    stop_order: 1,
+    geofence_radius_meters: 500,
+  });
+  prototype.updateStop.mockResolvedValue({
+    id: "stop-1",
+    route_id: ROUTE_ID,
+    name: "Parada Central",
+    latitude: 9.9763,
+    longitude: -84.8384,
+    stop_order: 1,
+    geofence_radius_meters: 500,
+  });
   prototype.deleteStop.mockResolvedValue({ id: "stop-1" });
   prototype.listIncidents.mockResolvedValue([
     {
@@ -81,6 +99,19 @@ function mockRepository() {
       longitude: -84.8384,
       speed: 25,
       heading: 90,
+      recorded_at: "2026-06-20T10:00:00Z",
+    },
+  ]);
+  prototype.getCurrentTelemetry.mockResolvedValue([
+    {
+      id: "loc-2",
+      trip_id: TRIP_ID,
+      route_id: ROUTE_ID,
+      latitude: 9.9763,
+      longitude: -84.8384,
+      speed: 25,
+      heading: 90,
+      status: "In Progress",
       recorded_at: "2026-06-20T10:00:00Z",
     },
   ]);
@@ -205,7 +236,7 @@ describe("admin routes", () => {
   describe("GET /api/admin/incidents", () => {
     test("returns 200 with incidents, optionally filtered by status", async () => {
       const response = await request(app)
-        .get("/api/admin/incidents?status=pending")
+        .get("/api/admin/incidents?status=Pending")
         .set("Authorization", `Bearer ${AUTH_TOKEN}`);
 
       expect(response.status).toBe(200);
@@ -219,9 +250,12 @@ describe("admin routes", () => {
           latitude: 9.9763,
           longitude: -84.8384,
           timestamp: "2026-06-20T10:00:00Z",
-          moderation_status: "pending",
+          status: "Pending",
         },
       ]);
+      expect(SupabaseAdminRepository.prototype.listIncidents).toHaveBeenCalledWith(
+        "pending",
+      );
     });
 
     test("rejects an invalid status", async () => {
@@ -238,13 +272,40 @@ describe("admin routes", () => {
       const response = await request(app)
         .put("/api/admin/incidents/3f2504e0-4f89-41d3-9a0c-0305e82c3301")
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
-        .send({ moderation_status: "validated" });
+        .send({ status: "Validated" });
 
       expect(response.status).toBe(200);
-      expect(response.body.moderation_status).toBe("validated");
+      expect(response.body.status).toBe("Validated");
       expect(SupabaseAdminRepository.prototype.setIncidentModeration).toHaveBeenCalledWith(
         "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
         "validated",
+        ADMIN_ID,
+      );
+    });
+
+    test("archives an incident as an admin", async () => {
+      SupabaseAdminRepository.prototype.setIncidentModeration.mockResolvedValue({
+        id: "incident-1",
+        trip_id: TRIP_ID,
+        user_id: "user-1",
+        type: "Traffic_Congestion",
+        description: "Traffic jam near the main stop.",
+        latitude: 9.9763,
+        longitude: -84.8384,
+        timestamp: "2026-06-20T10:00:00Z",
+        moderation_status: "archived",
+      });
+
+      const response = await request(app)
+        .put("/api/admin/incidents/3f2504e0-4f89-41d3-9a0c-0305e82c3301")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+        .send({ status: "Archived" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe("Archived");
+      expect(SupabaseAdminRepository.prototype.setIncidentModeration).toHaveBeenCalledWith(
+        "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+        "archived",
         ADMIN_ID,
       );
     });
@@ -255,7 +316,7 @@ describe("admin routes", () => {
       const response = await request(app)
         .put("/api/admin/incidents/3f2504e0-4f89-41d3-9a0c-0305e82c3301")
         .set("Authorization", `Bearer ${AUTH_TOKEN}`)
-        .send({ moderation_status: "dismissed" });
+        .send({ status: "Dismissed" });
 
       expect(response.status).toBe(404);
     });
@@ -276,7 +337,7 @@ describe("admin routes", () => {
           longitude: -84.8384,
           speed: 25,
           heading: 90,
-          recorded_at: "2026-06-20T10:00:00Z",
+          timestamp: "2026-06-20T10:00:00Z",
         },
       ]);
     });
@@ -285,6 +346,74 @@ describe("admin routes", () => {
       const response = await request(app)
         .get("/api/admin/telemetry/history")
         .set("Authorization", `Bearer ${AUTH_TOKEN}`);
+
+      expect(response.status).toBe(400);
+    });
+  });
+
+  describe("GET /api/admin/telemetry/current", () => {
+    test("returns 200 with the current telemetry of active trips", async () => {
+      const response = await request(app)
+        .get("/api/admin/telemetry/current")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual([
+        {
+          trip_id: TRIP_ID,
+          route_id: ROUTE_ID,
+          status: "In Progress",
+          latitude: 9.9763,
+          longitude: -84.8384,
+          speed: 25,
+          heading: 90,
+          timestamp: "2026-06-20T10:00:00Z",
+        },
+      ]);
+      expect(SupabaseAdminRepository.prototype.getCurrentTelemetry).toHaveBeenCalled();
+    });
+  });
+
+  describe("PUT /api/admin/stops/:id", () => {
+    test("returns 200 with the updated stop", async () => {
+      const response = await request(app)
+        .put("/api/admin/stops/3f2504e0-4f89-41d3-9a0c-0305e82c3301")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+        .send({ name: "Parada Central Norte" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        id: "stop-1",
+        route_id: ROUTE_ID,
+        name: "Parada Central",
+        latitude: 9.9763,
+        longitude: -84.8384,
+        stop_order: 1,
+        geofence_radius_meters: 500,
+      });
+      expect(SupabaseAdminRepository.prototype.updateStop).toHaveBeenCalledWith(
+        "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+        { name: "Parada Central Norte" },
+      );
+    });
+
+    test("returns 404 when the stop does not exist", async () => {
+      SupabaseAdminRepository.prototype.getStopById.mockResolvedValue(null);
+
+      const response = await request(app)
+        .put("/api/admin/stops/3f2504e0-4f89-41d3-9a0c-0305e82c3301")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+        .send({ name: "Parada Central Norte" });
+
+      expect(response.status).toBe(404);
+      expect(SupabaseAdminRepository.prototype.updateStop).not.toHaveBeenCalled();
+    });
+
+    test("rejects an empty body", async () => {
+      const response = await request(app)
+        .put("/api/admin/stops/3f2504e0-4f89-41d3-9a0c-0305e82c3301")
+        .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+        .send({});
 
       expect(response.status).toBe(400);
     });

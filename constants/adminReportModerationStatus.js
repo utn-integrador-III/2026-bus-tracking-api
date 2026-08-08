@@ -1,0 +1,37 @@
+"use strict";
+
+const {
+  REPORT_MODERATION_STATUS: DB,
+} = require("./reportModerationStatus");
+
+const ADMIN_REPORT_MODERATION_STATUS = Object.freeze({
+  PENDING: "Pending",
+  VALIDATED: "Validated",
+  ARCHIVED: "Archived",
+  DISMISSED: "Dismissed",
+});
+
+const ADMIN_REPORT_MODERATION_STATUS_VALUES = Object.freeze(
+  Object.values(ADMIN_REPORT_MODERATION_STATUS),
+);
+
+const ADMIN_TO_DB_MODERATION_STATUS = Object.freeze({
+  [ADMIN_REPORT_MODERATION_STATUS.PENDING]: DB.PENDING,
+  [ADMIN_REPORT_MODERATION_STATUS.VALIDATED]: DB.VALIDATED,
+  [ADMIN_REPORT_MODERATION_STATUS.ARCHIVED]: DB.ARCHIVED,
+  [ADMIN_REPORT_MODERATION_STATUS.DISMISSED]: DB.DISMISSED,
+});
+
+const DB_TO_ADMIN_MODERATION_STATUS = Object.freeze(
+  Object.entries(ADMIN_TO_DB_MODERATION_STATUS).reduce((acc, [admin, db]) => {
+    acc[db] = admin;
+    return acc;
+  }, {}),
+);
+
+module.exports = {
+  ADMIN_REPORT_MODERATION_STATUS,
+  ADMIN_REPORT_MODERATION_STATUS_VALUES,
+  ADMIN_TO_DB_MODERATION_STATUS,
+  DB_TO_ADMIN_MODERATION_STATUS,
+};

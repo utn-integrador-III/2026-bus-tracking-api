@@ -4,6 +4,7 @@ const { getServiceClient } = require("../../../../database/supabaseClient");
 const AppError = require("../../../../utils/AppError");
 const { HTTP_STATUS } = require("../../../../constants/httpStatus");
 const { ERROR_CODES } = require("../../../../constants/errorCodes");
+const { TRIP_STATUS } = require("../../../../constants/tripStatus");
 
 const BUSES_TABLE = "buses";
 const BUS_COLUMNS = "id, plate_number, capacity, status, created_at";
@@ -21,6 +22,9 @@ const LOCATION_COLUMNS = "id, trip_id, latitude, longitude, speed, heading, reco
 
 const USERS_TABLE = "users";
 const USER_COLUMNS = "id, name, email, is_active, deactivated_at, created_at";
+
+const TRIPS_TABLE = "trips";
+const TRIP_COLUMNS = "id, route_id, status";
 
 const USER_ROLES_TABLE = "user_roles";
 const USER_ROLE_COLUMNS = "id, user_id, role, license_number, employee_code, assigned_at";
@@ -64,6 +68,19 @@ class SupabaseAdminRepository {
     return data || [];
   }
 
+  async getStopById(id) {
+    const { data, error } = await getServiceClient()
+      .from(STOPS_TABLE)
+      .select(STOP_COLUMNS)
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) {
+      throw databaseError(error, "Error while accessing stop data.");
+    }
+    return data || null;
+  }
+
   async createStop(payload) {
     const { data, error } = await getServiceClient()
       .from(STOPS_TABLE)
@@ -75,6 +92,20 @@ class SupabaseAdminRepository {
       throw databaseError(error, "Error while creating stop data.");
     }
     return data;
+  }
+
+  async updateStop(id, payload) {
+    const { data, error } = await getServiceClient()
+      .from(STOPS_TABLE)
+      .update(payload)
+      .eq("id", id)
+      .select(STOP_COLUMNS)
+      .maybeSingle();
+
+    if (error) {
+      throw databaseError(error, "Error while updating stop data.");
+    }
+    return data || null;
   }
 
   async deleteStop(id) {
@@ -158,6 +189,44 @@ class SupabaseAdminRepository {
       throw databaseError(error, "Error while accessing telemetry data.");
     }
     return data || [];
+  }
+
+  async getCurrentTelemetry() {
+    const { data: trips, error: tripsError } = await getServiceClient()
+      .from(TRIPS_TABLE)
+      .select(TRIP_COLUMNS)
+      .eq("status", TRIP_STATUS.IN_PROGRESS);
+
+    if (tripsError) {
+      throw databaseError(tripsError, "Error while accessing active trips data.");
+    }
+
+    const entries = await Promise.all(
+      (trips || []).map(async (trip) => {
+        const { data: location, error } = await getServiceClient()
+          .from(LOCATIONS_TABLE)
+          .select(LOCATION_COLUMNS)
+          .eq("trip_id", trip.id)
+          .order("recorded_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error) {
+          throw databaseError(error, "Error while accessing telemetry data.");
+        }
+        if (!location) {
+          return null;
+        }
+
+        return {
+          ...location,
+          route_id: trip.route_id,
+          status: trip.status,
+        };
+      }),
+    );
+
+    return entries.filter((entry) => entry !== null);
   }
 
   async listUsers(role) {
