@@ -1,4 +1,4 @@
-app = "bus-tracking-api-CHANGE-ME"
+app = "bus-tracking-api"
 primary_region = "mia"
 
 [build]
