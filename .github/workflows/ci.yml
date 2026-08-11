@@ -45,5 +45,5 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - name: Run test suite
-        run: npm test
+      - name: Run test suite with coverage
+        run: npm run test:coverage
