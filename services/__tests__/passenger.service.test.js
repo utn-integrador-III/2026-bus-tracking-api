@@ -29,6 +29,7 @@ describe("passenger.service", () => {
 
       const result = await passengerService.createPassengerIncident({
         trip_id: validTripId,
+        user_id: "user-123",
         type: "traffic",
         description: "Traffic jam near the main stop.",
         latitude: 9.9763,
@@ -37,6 +38,7 @@ describe("passenger.service", () => {
 
       expect(incidentsRepository.createPassengerIncident).toHaveBeenCalledWith({
         trip_id: validTripId,
+        user_id: "user-123",
         type: "traffic",
         description: "Traffic jam near the main stop.",
         latitude: 9.9763,
@@ -47,12 +49,12 @@ describe("passenger.service", () => {
       expect(result.type).toBe("traffic");
     });
 
-    test("creates a passenger incident with null description when description is missing", async () => {
+    test("forwards the description verbatim without coercing it", async () => {
       incidentsRepository.createPassengerIncident.mockResolvedValue({
         id: "incident-2",
         trip_id: validTripId,
         type: "overcrowding",
-        description: null,
+        description: "Bus is full and cannot take more passengers.",
         latitude: 9.9763,
         longitude: -84.8384,
         timestamp: "2026-06-20T10:00:00Z",
@@ -60,20 +62,23 @@ describe("passenger.service", () => {
 
       const result = await passengerService.createPassengerIncident({
         trip_id: validTripId,
+        user_id: "user-456",
         type: "overcrowding",
+        description: "Bus is full and cannot take more passengers.",
         latitude: 9.9763,
         longitude: -84.8384,
       });
 
       expect(incidentsRepository.createPassengerIncident).toHaveBeenCalledWith({
         trip_id: validTripId,
+        user_id: "user-456",
         type: "overcrowding",
-        description: null,
+        description: "Bus is full and cannot take more passengers.",
         latitude: 9.9763,
         longitude: -84.8384,
       });
 
-      expect(result.description).toBeNull();
+      expect(result.description).toBe("Bus is full and cannot take more passengers.");
     });
   });
 
@@ -95,7 +100,9 @@ describe("passenger.service", () => {
         trip_id: validTripId,
       });
 
-      expect(incidentsRepository.findIncidentsByTripId).toHaveBeenCalledWith(validTripId);
+      expect(incidentsRepository.findIncidentsByTripId).toHaveBeenCalledWith(validTripId, {
+        since: expect.any(String),
+      });
       expect(result).toHaveLength(1);
       expect(result[0].type).toBe("traffic");
     });
