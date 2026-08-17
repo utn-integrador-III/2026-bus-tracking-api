@@ -1,6 +1,12 @@
 "use strict";
 
-const { ProximityWorker } = require("../proximityWorker");
+const mockTrackingService = { checkProximity: jest.fn().mockResolvedValue(undefined) };
+
+jest.mock("../../src/modules/passenger-tracking/index", () => ({
+  createPassengerTrackingModule: jest.fn(() => ({ trackingService: mockTrackingService })),
+}));
+
+const { ProximityWorker, createProximityWorker } = require("../proximityWorker");
 
 const TRIP_A = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
 const TRIP_B = "7f2504e0-4f89-41d3-9a0c-0305e82c3399";
@@ -93,5 +99,45 @@ describe("ProximityWorker scheduling", () => {
 
     await jest.advanceTimersByTimeAsync(5000);
     expect(tripsRepository.listTrips).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("ProximityWorker edge cases", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  test("does not schedule when stopped and unreferences supported timers", () => {
+    const { worker } = buildWorker();
+    const timer = { unref: jest.fn() };
+    const setTimer = jest.spyOn(global, "setTimeout").mockReturnValue(timer);
+
+    worker._scheduleNext(10);
+    expect(setTimer).not.toHaveBeenCalled();
+
+    worker.running = true;
+    worker._scheduleNext(10);
+
+    expect(setTimer).toHaveBeenCalledWith(expect.any(Function), 10);
+    expect(timer.unref).toHaveBeenCalledTimes(1);
+  });
+
+  test("logs failed ticks and schedules the next one", async () => {
+    const { worker } = buildWorker();
+    const failure = new Error("repository unavailable");
+    worker.tick = jest.fn().mockRejectedValue(failure);
+    const schedule = jest.spyOn(worker, "_scheduleNext").mockImplementation(() => {});
+    const logError = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    await worker._run();
+
+    expect(logError).toHaveBeenCalledWith("ProximityWorker tick failed:", "repository unavailable");
+    expect(schedule).toHaveBeenCalledWith(1000);
+  });
+
+  test("creates workers with default and injected tracking services", () => {
+    const injectedTrackingService = { checkProximity: jest.fn() };
+
+    expect(createProximityWorker().trackingService).toBe(mockTrackingService);
+    expect(createProximityWorker({ trackingService: injectedTrackingService }).trackingService)
+      .toBe(injectedTrackingService);
   });
 });
