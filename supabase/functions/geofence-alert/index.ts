@@ -1,9 +1,5 @@
-// Edge Function: geofence-alert
-// Triggered by the backend when a watched bus crosses the passenger's stop
-// proximity threshold. Receives { passenger_id, distance_m, trip_id, stop_id },
-// resolves the passenger's FCM device token, and dispatches an FCM HTTP v1 push.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "@supabase/supabase-js";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { sendFcmMessage } from "../_shared/fcm.ts";
 

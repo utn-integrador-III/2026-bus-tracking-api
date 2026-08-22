@@ -17,6 +17,7 @@ const SOURCE_GLOBS = [
   "utils/**/*.{js,mjs,cjs}",
   "views/**/*.{js,mjs,cjs}",
   "scripts/**/*.{js,mjs,cjs}",
+  "src/**/*.{js,mjs,cjs}",
   "tools/**/*.{js,mjs,cjs}",
   "index.js",
   "app.js",

@@ -9,6 +9,7 @@ const {
   createPassengerTrackingRouter,
   createPassengerPushTokenRouter,
 } = require("../modules/passenger-tracking/index");
+const { createPassengerNotificationRouter } = require("../modules/notifications");
 const { createDriverIncidentsRouter } = require("../modules/driver-trips/index");
 const mapIncidentsRouter = require("../../routes/mapIncidentsRouter");
 const {
@@ -26,6 +27,7 @@ function createApiRouter() {
   router.use("/admin/routes", createAdminRoutesRouter());
   router.use("/passenger/routes", createConsumerRoutesRouter());
   router.use("/passenger/incidents", passengerIncidentsRouter);
+  router.use("/passenger", createPassengerNotificationRouter());
   router.use("/admin/trips", createAdminTripsRouter());
   router.use("/passenger/trips", createConsumerTripsRouter());
   router.use("/passenger/tracking", createPassengerTrackingRouter());

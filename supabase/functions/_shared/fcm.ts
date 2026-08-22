@@ -1,6 +1,3 @@
-// FCM HTTP v1 vendor adapter.
-// Isolates the push provider behind a single sendFcmMessage() entry point so the
-// rest of the function (and the Node backend) never depends on FCM specifics (NFR-14).
 
 interface ServiceAccount {
   project_id: string;
@@ -19,23 +16,13 @@ const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 
 function loadServiceAccount(): ServiceAccount {
-  const raw = Deno.env.get("FCM_SERVICE_ACCOUNT");
-  if (raw) {
-    const parsed = JSON.parse(raw);
-    return {
-      project_id: parsed.project_id,
-      client_email: parsed.client_email,
-      private_key: parsed.private_key,
-    };
-  }
-
   const project_id = Deno.env.get("FCM_PROJECT_ID");
   const client_email = Deno.env.get("FCM_CLIENT_EMAIL");
   const private_key = Deno.env.get("FCM_PRIVATE_KEY");
 
   if (!project_id || !client_email || !private_key) {
     throw new Error(
-      "Missing FCM credentials: set FCM_SERVICE_ACCOUNT or FCM_PROJECT_ID/FCM_CLIENT_EMAIL/FCM_PRIVATE_KEY",
+      "Missing FCM credentials: set FCM_PROJECT_ID, FCM_CLIENT_EMAIL and FCM_PRIVATE_KEY",
     );
   }
 

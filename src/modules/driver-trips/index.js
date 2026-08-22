@@ -12,7 +12,12 @@ const validate = require("../../../middleware/validate");
 const requireAuth = require("../../../middleware/requireAuth");
 const requireRole = require("../../../middleware/requireRole");
 const { idParamSchema } = require("../../../models/tripSchema");
-const { reportLocationSchema } = require("../../../models/driverTrip.model");
+const {
+  reportLocationSchema,
+  delayTripSchema,
+  cancelTripSchema,
+  reportDetourSchema,
+} = require("../../../models/driverTrip.model");
 const { normalizeReportType } = require("../../../models/incident.model");
 const { REPORT_TYPE_VALUES } = require("../../../constants/reportType");
 const tripsRepository = require("../../../repositories/tripsRepository");
@@ -26,14 +31,17 @@ const {
   SupabaseTripWatchRepository,
   ExpoPushService,
 } = require("../passenger-tracking/index");
+const SupabaseNotificationRepository = require("../notifications/infrastructure/SupabaseNotificationRepository");
 const { env } = require("../../../config/env");
 
-const ACTIVE_STATUSES = [TRIP_STATUS.IN_PROGRESS];
+const ACTIVE_STATUSES = [TRIP_STATUS.IN_PROGRESS, TRIP_STATUS.DELAYED, TRIP_STATUS.STOPPED];
 const STARTABLE_STATUSES = [TRIP_STATUS.SCHEDULED, TRIP_STATUS.PENDING];
 const ASSIGNED_STATUSES = [
   TRIP_STATUS.SCHEDULED,
   TRIP_STATUS.PENDING,
   TRIP_STATUS.IN_PROGRESS,
+  TRIP_STATUS.DELAYED,
+  TRIP_STATUS.STOPPED,
 ];
 
 const driverIncidentSchema = z
@@ -55,6 +63,7 @@ class DriverTripService {
     this.routesRepository = dependencies.routesRepository || routesRepository;
     this.googleRoutesService = dependencies.googleRoutesService || googleRoutesService;
     this.trackingService = dependencies.trackingService;
+    this.operationalRepository = dependencies.operationalRepository;
   }
 
   _notFound() {
@@ -101,6 +110,7 @@ class DriverTripService {
     const updated = await this.tripRepository.updateTrip(tripId, {
       status: TRIP_STATUS.IN_PROGRESS,
       started_at: now,
+      status_changed_by: driverId,
     });
 
     await this.realtimeManager.startTracking(tripId);
@@ -112,9 +122,9 @@ class DriverTripService {
     const trip = await this._getTripOrFail(tripId);
     this._assertDriverOwnership(trip, driverId);
 
-    if (trip.status !== TRIP_STATUS.IN_PROGRESS) {
+    if (!ACTIVE_STATUSES.includes(trip.status)) {
       throw this._conflict(
-        `Only in-progress trips can be completed. Current status: ${trip.status}.`,
+        `Only active trips can be completed. Current status: ${trip.status}.`,
       );
     }
 
@@ -122,6 +132,7 @@ class DriverTripService {
     const updated = await this.tripRepository.updateTrip(tripId, {
       status: TRIP_STATUS.COMPLETED,
       ended_at: now,
+      status_changed_by: driverId,
     });
 
     await this.realtimeManager.stopTracking(tripId);
@@ -129,7 +140,7 @@ class DriverTripService {
     return updated;
   }
 
-  async cancelTrip(driverId, tripId) {
+  async cancelTrip(driverId, tripId, payload = {}) {
     const trip = await this._getTripOrFail(tripId);
     this._assertDriverOwnership(trip, driverId);
 
@@ -142,11 +153,88 @@ class DriverTripService {
     const updated = await this.tripRepository.updateTrip(tripId, {
       status: TRIP_STATUS.CANCELLED,
       ended_at: new Date().toISOString(),
+      status_reason: payload.reason || null,
+      status_changed_by: driverId,
     });
 
     await this.realtimeManager.stopTracking(tripId);
 
     return updated;
+  }
+
+  async delayTrip(driverId, tripId, payload) {
+    const trip = await this._getTripOrFail(tripId);
+    this._assertDriverOwnership(trip, driverId);
+
+    if (![TRIP_STATUS.IN_PROGRESS, TRIP_STATUS.STOPPED].includes(trip.status)) {
+      throw this._conflict(
+        `Only active or stopped trips can be delayed. Current status: ${trip.status}.`,
+      );
+    }
+
+    return this.tripRepository.updateTrip(tripId, {
+      status: TRIP_STATUS.DELAYED,
+      status_reason: payload.reason,
+      status_metadata: {
+        estimated_delay_minutes: payload.estimated_delay_minutes || null,
+      },
+      status_changed_by: driverId,
+    });
+  }
+
+  async resumeTrip(driverId, tripId) {
+    const trip = await this._getTripOrFail(tripId);
+    this._assertDriverOwnership(trip, driverId);
+
+    if (![TRIP_STATUS.DELAYED, TRIP_STATUS.STOPPED].includes(trip.status)) {
+      throw this._conflict(
+        `Only delayed or stopped trips can be resumed. Current status: ${trip.status}.`,
+      );
+    }
+
+    return this.tripRepository.updateTrip(tripId, {
+      status: TRIP_STATUS.IN_PROGRESS,
+      status_reason: "El viaje reanudo su operacion normal.",
+      status_changed_by: driverId,
+    });
+  }
+
+  async reportDetour(driverId, tripId, payload) {
+    const trip = await this._getTripOrFail(tripId);
+    this._assertDriverOwnership(trip, driverId);
+
+    if (!ACTIVE_STATUSES.includes(trip.status)) {
+      throw this._conflict(
+        `Detours can only be reported for active trips. Current status: ${trip.status}.`,
+      );
+    }
+
+    const { reason, ...details } = payload;
+    return this.operationalRepository.createDetour({
+      trip_id: tripId,
+      reported_by: driverId,
+      reason,
+      details,
+    });
+  }
+
+  async resolveDetour(driverId, tripId) {
+    const trip = await this._getTripOrFail(tripId);
+    this._assertDriverOwnership(trip, driverId);
+
+    const detour = await this.operationalRepository.resolveActiveDetour(tripId, driverId);
+    if (!detour) {
+      throw this.notFoundDetour();
+    }
+    return detour;
+  }
+
+  notFoundDetour() {
+    return new AppError(
+      HTTP_STATUS.NOT_FOUND,
+      ERROR_CODES.ACTIVE_DETOUR_NOT_FOUND,
+      "No existe un desvio activo para este viaje.",
+    );
   }
 
   async getActiveTrip(driverId) {
@@ -162,9 +250,9 @@ class DriverTripService {
     const trip = await this._getTripOrFail(tripId);
     this._assertDriverOwnership(trip, driverId);
 
-    if (trip.status !== TRIP_STATUS.IN_PROGRESS) {
+    if (!ACTIVE_STATUSES.includes(trip.status)) {
       throw this._conflict(
-        `Location can only be reported for in-progress trips. Current status: ${trip.status}.`,
+        `Location can only be reported for active trips. Current status: ${trip.status}.`,
       );
     }
 
@@ -286,6 +374,10 @@ class DriverTripController {
     this.startTrip = asyncHandler(this.startTrip.bind(this));
     this.completeTrip = asyncHandler(this.completeTrip.bind(this));
     this.cancelTrip = asyncHandler(this.cancelTrip.bind(this));
+    this.delayTrip = asyncHandler(this.delayTrip.bind(this));
+    this.resumeTrip = asyncHandler(this.resumeTrip.bind(this));
+    this.reportDetour = asyncHandler(this.reportDetour.bind(this));
+    this.resolveDetour = asyncHandler(this.resolveDetour.bind(this));
     this.getActiveTrip = asyncHandler(this.getActiveTrip.bind(this));
     this.listAssignedTrips = asyncHandler(this.listAssignedTrips.bind(this));
     this.reportLocation = asyncHandler(this.reportLocation.bind(this));
@@ -309,8 +401,39 @@ class DriverTripController {
 
   async cancelTrip(req, res) {
     const driverId = this._extractDriverId(req);
-    const trip = await this.service.cancelTrip(driverId, req.valid.params.id);
+    const trip = await this.service.cancelTrip(driverId, req.valid.params.id, req.valid.body);
     res.status(HTTP_STATUS.OK).json(trip);
+  }
+
+  async delayTrip(req, res) {
+    const trip = await this.service.delayTrip(
+      this._extractDriverId(req),
+      req.valid.params.id,
+      req.valid.body,
+    );
+    res.status(HTTP_STATUS.OK).json(trip);
+  }
+
+  async resumeTrip(req, res) {
+    const trip = await this.service.resumeTrip(this._extractDriverId(req), req.valid.params.id);
+    res.status(HTTP_STATUS.OK).json(trip);
+  }
+
+  async reportDetour(req, res) {
+    const detour = await this.service.reportDetour(
+      this._extractDriverId(req),
+      req.valid.params.id,
+      req.valid.body,
+    );
+    res.status(HTTP_STATUS.CREATED).json(detour);
+  }
+
+  async resolveDetour(req, res) {
+    const detour = await this.service.resolveDetour(
+      this._extractDriverId(req),
+      req.valid.params.id,
+    );
+    res.status(HTTP_STATUS.OK).json(detour);
   }
 
   async getActiveTrip(req, res) {
@@ -345,6 +468,8 @@ function createDriverTripModule(dependencies = {}) {
       realtimeManager: dependencies.realtimeManager,
       routesRepository: dependencies.routesRepository,
       googleRoutesService: dependencies.googleRoutesService,
+      operationalRepository:
+        dependencies.operationalRepository || new SupabaseNotificationRepository(),
       trackingService: dependencies.trackingService || new PassengerTrackingService({
         watchRepository: new SupabaseTripWatchRepository(),
         realtimeManager: dependencies.realtimeManager || realtimeManager,
@@ -385,8 +510,32 @@ function createDriverTripsRouter(dependencies = {}) {
 
   router.post(
     "/:id/cancel",
-    validate({ params: idParamSchema }, validationCode),
+    validate({ params: idParamSchema, body: cancelTripSchema }, validationCode),
     driverTripController.cancelTrip,
+  );
+
+  router.post(
+    "/:id/delay",
+    validate({ params: idParamSchema, body: delayTripSchema }, validationCode),
+    driverTripController.delayTrip,
+  );
+
+  router.post(
+    "/:id/resume",
+    validate({ params: idParamSchema }, validationCode),
+    driverTripController.resumeTrip,
+  );
+
+  router.post(
+    "/:id/detour",
+    validate({ params: idParamSchema, body: reportDetourSchema }, validationCode),
+    driverTripController.reportDetour,
+  );
+
+  router.post(
+    "/:id/detour/resolve",
+    validate({ params: idParamSchema }, validationCode),
+    driverTripController.resolveDetour,
   );
 
   router.post(

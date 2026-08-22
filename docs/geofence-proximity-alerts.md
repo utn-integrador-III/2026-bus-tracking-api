@@ -89,8 +89,6 @@ Edge Function secrets (set in Supabase, **not** in the Node `.env`):
 
 ```bash
 supabase secrets set FCM_PROJECT_ID=... FCM_CLIENT_EMAIL=... FCM_PRIVATE_KEY="<service-account private_key, newlines as \n>"
-# or a single JSON blob:
-supabase secrets set FCM_SERVICE_ACCOUNT="$(cat firebase-service-account.json)"
 ```
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected into hosted functions

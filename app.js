@@ -20,6 +20,15 @@ function buildApp() {
 
   app.use(express.json({ limit: "1mb" }));
 
+  app.get("/", (_req, res) => {
+    res.status(200).json({
+      name: "2026 Bus Tracking API",
+      status: "ok",
+      health: "/health",
+      documentation: "/api/docs",
+    });
+  });
+
   app.get("/health", (_req, res) => {
     res.status(200).json({ status: "ok" });
   });

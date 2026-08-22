@@ -12,3 +12,6 @@ Thumbs.db
 .vscode
 .idea
 firebase-service-account.json
+*-firebase-adminsdk-*.json
+supabase/.temp/
+2026-bus-tracking-api/
