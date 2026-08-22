@@ -1,6 +1,7 @@
 "use strict";
 
 const express = require("express");
+const { z } = require("zod");
 const { ROLES } = require("../../../constants/roles");
 const { HTTP_STATUS } = require("../../../constants/httpStatus");
 const { ERROR_CODES } = require("../../../constants/errorCodes");
@@ -17,13 +18,21 @@ const {
   cancelTripSchema,
   reportDetourSchema,
 } = require("../../../models/driverTrip.model");
+const { normalizeReportType } = require("../../../models/incident.model");
+const { REPORT_TYPE_VALUES } = require("../../../constants/reportType");
 const tripsRepository = require("../../../repositories/tripsRepository");
 const locationRepository = require("../../../repositories/locationRepository");
+const incidentsRepository = require("../../../repositories/incidentsRepository");
 const realtimeManager = require("../../../realtime/index");
 const routesRepository = require("../../../repositories/routesRepository");
 const googleRoutesService = require("../../../services/googleRoutes.service");
-const { PassengerTrackingService, SupabaseTripWatchRepository } = require("../passenger-tracking/index");
+const {
+  PassengerTrackingService,
+  SupabaseTripWatchRepository,
+  ExpoPushService,
+} = require("../passenger-tracking/index");
 const SupabaseNotificationRepository = require("../notifications/infrastructure/SupabaseNotificationRepository");
+const { env } = require("../../../config/env");
 
 const ACTIVE_STATUSES = [TRIP_STATUS.IN_PROGRESS, TRIP_STATUS.DELAYED, TRIP_STATUS.STOPPED];
 const STARTABLE_STATUSES = [TRIP_STATUS.SCHEDULED, TRIP_STATUS.PENDING];
@@ -34,6 +43,17 @@ const ASSIGNED_STATUSES = [
   TRIP_STATUS.DELAYED,
   TRIP_STATUS.STOPPED,
 ];
+
+const driverIncidentSchema = z
+  .object({
+    trip_id: z.string().uuid(),
+    type: z.preprocess(normalizeReportType, z.enum(REPORT_TYPE_VALUES)),
+    description: z.string().trim().min(1).max(500),
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+    speed: z.number().min(0).optional(),
+  })
+  .strict();
 
 class DriverTripService {
   constructor(dependencies = {}) {
@@ -245,13 +265,106 @@ class DriverTripService {
       recorded_at: data.recorded_at || new Date().toISOString(),
     });
 
-    await this.realtimeManager.broadcastLocation(tripId, location);
+    let eta = null;
+    if (env.enableGoogleRoutes) {
+      try {
+        const route = await this.routesRepository.getRouteById(trip.route_id);
+        if (route && route.geometry_geojson) {
+          const coordinates =
+            route.geometry_geojson.type === "Feature"
+              ? route.geometry_geojson.geometry.coordinates
+              : route.geometry_geojson.coordinates;
+          if (coordinates && coordinates.length > 0) {
+            const dest = coordinates[coordinates.length - 1];
+            const routeData = await this.googleRoutesService.computeRoute({
+              origin: { latitude: data.latitude, longitude: data.longitude },
+              destination: { latitude: dest[1], longitude: dest[0] },
+            });
+            eta = routeData.duration;
+          }
+        }
+      } catch (err) {
+        console.error("Error computing ETA:", err.message);
+      }
+    }
+
+    await this.realtimeManager.broadcastLocation(tripId, location, eta);
 
     if (this.trackingService) {
       await this.trackingService.checkProximity(tripId, data.latitude, data.longitude);
     }
 
     return location;
+  }
+}
+
+class DriverIncidentService {
+  constructor(dependencies = {}) {
+    this.tripRepository = dependencies.tripRepository || tripsRepository;
+    this.locationRepository = dependencies.locationRepository || locationRepository;
+    this.incidentsRepository = dependencies.incidentsRepository || incidentsRepository;
+  }
+
+  _speedLocked(speed, source) {
+    return new AppError(
+      HTTP_STATUS.CONFLICT,
+      ERROR_CODES.DRIVER_INCIDENT_SPEED_LOCKED,
+      "No se puede reportar un incidente con el vehiculo en movimiento.",
+      { speed, source },
+    );
+  }
+
+  async _assertVehicleStopped(tripId, requestedSpeed) {
+    if (requestedSpeed != null && requestedSpeed > 0) {
+      throw this._speedLocked(requestedSpeed, "request");
+    }
+
+    const latest = await this.locationRepository.getLatestByTripId(tripId);
+    if (latest && latest.speed != null && latest.speed > 0) {
+      throw this._speedLocked(latest.speed, "telemetry");
+    }
+  }
+
+  async createIncident(driverId, data) {
+    const trip = await this.tripRepository.getTripById(data.trip_id);
+    if (!trip) {
+      throw new AppError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_CODES.TRIP_NOT_FOUND,
+        "El viaje solicitado no existe.",
+      );
+    }
+
+    if (trip.driver_id !== driverId) {
+      throw new AppError(
+        HTTP_STATUS.FORBIDDEN,
+        ERROR_CODES.FORBIDDEN_ROLE,
+        "This trip is not assigned to the authenticated driver.",
+      );
+    }
+
+    await this._assertVehicleStopped(data.trip_id, data.speed);
+
+    return this.incidentsRepository.createPassengerIncident({
+      trip_id: data.trip_id,
+      user_id: driverId,
+      type: data.type,
+      description: data.description ?? null,
+      latitude: data.latitude,
+      longitude: data.longitude,
+    });
+  }
+}
+
+class DriverIncidentController {
+  constructor(service) {
+    this.service = service;
+    this.createIncident = asyncHandler(this.createIncident.bind(this));
+  }
+
+  async createIncident(req, res) {
+    const incident = await this.service.createIncident(req.auth.userId, req.valid.body);
+    res.status(HTTP_STATUS.CREATED).json(incident);
   }
 }
 
@@ -360,6 +473,7 @@ function createDriverTripModule(dependencies = {}) {
       trackingService: dependencies.trackingService || new PassengerTrackingService({
         watchRepository: new SupabaseTripWatchRepository(),
         realtimeManager: dependencies.realtimeManager || realtimeManager,
+        pushService: dependencies.pushService || new ExpoPushService(),
       }),
     });
   const driverTripController =
@@ -433,9 +547,31 @@ function createDriverTripsRouter(dependencies = {}) {
   return router;
 }
 
+function createDriverIncidentsRouter(dependencies = {}) {
+  const driverIncidentService =
+    dependencies.driverIncidentService || new DriverIncidentService(dependencies);
+  const driverIncidentController =
+    dependencies.driverIncidentController || new DriverIncidentController(driverIncidentService);
+
+  const router = express.Router();
+
+  router.use(requireAuth, requireRole(ROLES.DRIVER));
+
+  router.post(
+    "/",
+    validate({ body: driverIncidentSchema }, ERROR_CODES.DRIVER_INCIDENT_VALIDATION_FAILED),
+    driverIncidentController.createIncident,
+  );
+
+  return router;
+}
+
 module.exports = {
   DriverTripService,
   DriverTripController,
+  DriverIncidentService,
+  DriverIncidentController,
   createDriverTripModule,
   createDriverTripsRouter,
+  createDriverIncidentsRouter,
 };

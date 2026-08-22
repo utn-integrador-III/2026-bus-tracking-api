@@ -13,10 +13,12 @@ const requireRole = require("../../../middleware/requireRole");
 const {
   createTripSchema,
   updateTripSchema,
+  updateTripStatusSchema,
   idParamSchema,
 } = require("../../../models/tripSchema");
 const tripsRepository = require("../../../repositories/tripsRepository");
 const SupabaseTripRepository = require("./infrastructure/SupabaseTripRepository");
+const realtimeManager = require("../../../realtime/index");
 
 class TripRepository {
   async listTrips(_query) {
@@ -96,9 +98,15 @@ class TripPresenter {
   }
 }
 
+const TERMINAL_STATUSES = Object.freeze([
+  TRIP_STATUS.COMPLETED,
+  TRIP_STATUS.CANCELLED,
+]);
+
 class TripService {
-  constructor(tripRepository) {
+  constructor(tripRepository, dependencies = {}) {
     this.tripRepository = tripRepository;
+    this.realtimeManager = dependencies.realtimeManager || realtimeManager;
   }
 
   notFound() {
@@ -208,6 +216,29 @@ class TripService {
     }
     return this.tripRepository.setTripStatus(id, TRIP_STATUS.SCHEDULED);
   }
+
+  async changeStatus(id, status) {
+    const existing = await this.tripRepository.getTripById(id);
+    if (!existing) {
+      throw this.notFound();
+    }
+
+    let updated;
+    if (TERMINAL_STATUSES.includes(status)) {
+      updated = await this.tripRepository.updateTrip(id, {
+        status,
+        ended_at: new Date().toISOString(),
+      });
+      await this.realtimeManager.stopTracking(id);
+    } else {
+      updated = await this.tripRepository.setTripStatus(id, status);
+    }
+
+    if (!updated) {
+      throw this.notFound();
+    }
+    return updated;
+  }
 }
 
 class TripController {
@@ -220,6 +251,7 @@ class TripController {
     this.updateTrip = asyncHandler(this.updateTrip.bind(this));
     this.deactivateTrip = asyncHandler(this.deactivateTrip.bind(this));
     this.reactivateTrip = asyncHandler(this.reactivateTrip.bind(this));
+    this.updateTripStatus = asyncHandler(this.updateTripStatus.bind(this));
     this.listConsumerTrips = asyncHandler(this.listConsumerTrips.bind(this));
   }
 
@@ -253,6 +285,14 @@ class TripController {
     res.status(HTTP_STATUS.OK).json(this.tripPresenter.reactivated());
   }
 
+  async updateTripStatus(req, res) {
+    const row = await this.tripService.changeStatus(
+      req.valid.params.id,
+      req.valid.body.status,
+    );
+    res.status(HTTP_STATUS.OK).json(this.tripPresenter.presentAdminTrip(row));
+  }
+
   async listConsumerTrips(_req, res) {
     const rows = await this.tripService.listVisible();
     res.status(HTTP_STATUS.OK).json(this.tripPresenter.presentConsumerTrips(rows));
@@ -264,7 +304,9 @@ function createTripModule(dependencies = {}) {
     dependencies.tripRepository ||
     (dependencies.useConcreteRepository ? new SupabaseTripRepository() : tripsRepository);
   const tripPresenter = dependencies.tripPresenter || new TripPresenter();
-  const tripService = dependencies.tripService || new TripService(tripRepository);
+  const tripService = dependencies.tripService || new TripService(tripRepository, {
+    realtimeManager: dependencies.realtimeManager,
+  });
   const tripController = dependencies.tripController || new TripController(tripService, tripPresenter);
 
   return {
@@ -297,6 +339,14 @@ function createAdminTripsRouter(dependencies = {}) {
     "/:id",
     validate({ params: idParamSchema, body: updateTripSchema }, validationCode),
     tripController.updateTrip,
+  );
+  router.patch(
+    "/:id/status",
+    validate(
+      { params: idParamSchema, body: updateTripStatusSchema },
+      validationCode,
+    ),
+    tripController.updateTripStatus,
   );
   router.delete(
     "/:id",

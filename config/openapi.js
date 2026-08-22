@@ -3,6 +3,9 @@
 const { ROLES } = require("../constants/roles");
 const { ERROR_CODES } = require("../constants/errorCodes");
 const { TRIP_STATUS_VALUES } = require("../constants/tripStatus");
+const {
+  ADMIN_REPORT_MODERATION_STATUS_VALUES,
+} = require("../constants/adminReportModerationStatus");
 
 const errorEnvelopeSchema = {
   type: "object",
@@ -176,6 +179,62 @@ const adminTripSchema = {
   },
 };
 
+const checkoutTicketRequestSchema = {
+  type: "object",
+  required: ["trip_id"],
+  properties: {
+    trip_id: {
+      type: "string",
+      format: "uuid",
+      example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+    },
+  },
+};
+
+const ticketSchema = {
+  type: "object",
+  required: [
+    "id",
+    "passenger_id",
+    "trip_id",
+    "status",
+    "qr_payload",
+    "created_at",
+  ],
+  properties: {
+    id: {
+      type: "string",
+      format: "uuid",
+      example: "9f2504e0-4f89-41d3-9a0c-0305e82c3309",
+    },
+    passenger_id: {
+      type: "string",
+      format: "uuid",
+      example: "15740dd7-9b7f-4838-aaf8-b59141e7edac",
+    },
+    trip_id: {
+      type: "string",
+      format: "uuid",
+      example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+    },
+    status: {
+      type: "string",
+      example: "Generated",
+    },
+    qr_payload: {
+      type: "string",
+      description:
+        "Base64URL encoded secure QR payload generated from the ticket UUID.",
+      example: "eyJ0aWNrZXRfaWQiOiI5ZjI1MDRlMC00Zjg5LTQxZDMtOWEwYy0wMzA1ZTgyYzMzMDkifQ",
+    },
+    created_at: {
+      type: "string",
+      format: "date-time",
+      example: "2026-07-01T00:00:00.000Z",
+    },
+  },
+};
+
 const consumerTripSchema = {
   type: "object",
   required: ["id", "route_id", "bus_id", "departure_time", "status"],
@@ -224,6 +283,129 @@ const updateTripRequestSchema = {
     status_metadata: { type: "object", additionalProperties: true },
   },
   example: { status: "Delayed" },
+};
+
+const updateTripStatusRequestSchema = {
+  type: "object",
+  required: ["status"],
+  additionalProperties: false,
+  properties: {
+    status: { $ref: "#/components/schemas/TripStatus" },
+  },
+  example: { status: "In Progress" },
+};
+
+const adminStopSchema = {
+  type: "object",
+  required: ["id", "route_id", "name", "latitude", "longitude", "stop_order"],
+  properties: {
+    id: { type: "string", format: "uuid" },
+    route_id: { type: "string", format: "uuid" },
+    name: { type: "string", example: "Parada Central" },
+    latitude: { type: "number", example: 9.9763 },
+    longitude: { type: "number", example: -84.8384 },
+    stop_order: { type: "integer", minimum: 0, example: 1 },
+    geofence_radius_meters: { type: "integer", minimum: 1, example: 500 },
+  },
+};
+
+const createStopRequestSchema = {
+  type: "object",
+  required: ["route_id", "name", "latitude", "longitude", "stop_order"],
+  additionalProperties: false,
+  properties: {
+    route_id: { type: "string", format: "uuid" },
+    name: { type: "string", minLength: 1, maxLength: 255 },
+    latitude: { type: "number", minimum: -90, maximum: 90 },
+    longitude: { type: "number", minimum: -180, maximum: 180 },
+    stop_order: { type: "integer", minimum: 0 },
+    geofence_radius_meters: { type: "integer", minimum: 1, default: 500 },
+  },
+};
+
+const updateStopRequestSchema = {
+  type: "object",
+  minProperties: 1,
+  additionalProperties: false,
+  properties: {
+    route_id: { type: "string", format: "uuid" },
+    name: { type: "string", minLength: 1, maxLength: 255 },
+    latitude: { type: "number", minimum: -90, maximum: 90 },
+    longitude: { type: "number", minimum: -180, maximum: 180 },
+    stop_order: { type: "integer", minimum: 0 },
+    geofence_radius_meters: { type: "integer", minimum: 1 },
+  },
+  example: { name: "Parada Central Norte" },
+};
+
+const adminIncidentSchema = {
+  type: "object",
+  required: [
+    "id",
+    "trip_id",
+    "user_id",
+    "type",
+    "latitude",
+    "longitude",
+    "timestamp",
+    "status",
+  ],
+  properties: {
+    id: { type: "string", format: "uuid" },
+    trip_id: { type: "string", format: "uuid" },
+    user_id: { type: "string", format: "uuid" },
+    type: { type: "string", example: "Traffic_Congestion" },
+    description: { type: "string", nullable: true },
+    latitude: { type: "number", example: 9.9763 },
+    longitude: { type: "number", example: -84.8384 },
+    timestamp: { type: "string", format: "date-time" },
+    status: {
+      type: "string",
+      enum: ADMIN_REPORT_MODERATION_STATUS_VALUES,
+    },
+  },
+};
+
+const moderateIncidentRequestSchema = {
+  type: "object",
+  required: ["status"],
+  additionalProperties: false,
+  properties: {
+    status: {
+      type: "string",
+      enum: ADMIN_REPORT_MODERATION_STATUS_VALUES,
+    },
+  },
+  example: { status: "Validated" },
+};
+
+const telemetryPointSchema = {
+  type: "object",
+  required: ["id", "trip_id", "latitude", "longitude", "timestamp"],
+  properties: {
+    id: { type: "integer", format: "int64" },
+    trip_id: { type: "string", format: "uuid" },
+    latitude: { type: "number", example: 9.9763 },
+    longitude: { type: "number", example: -84.8384 },
+    speed: { type: "number", nullable: true },
+    heading: { type: "number", nullable: true },
+    timestamp: { type: "string", format: "date-time" },
+  },
+};
+
+const currentTelemetryPointSchema = {
+  type: "object",
+  required: ["trip_id", "route_id", "status", "latitude", "longitude", "timestamp"],
+  properties: {
+    trip_id: { type: "string", format: "uuid" },
+    route_id: { type: "string", format: "uuid" },
+    status: { type: "string", example: "In Progress" },
+    latitude: { type: "number", example: 9.9763 },
+    longitude: { type: "number", example: -84.8384 },
+    speed: { type: "number", nullable: true },
+    heading: { type: "number", nullable: true },
+    timestamp: { type: "string", format: "date-time" },
+  },
 };
 
 const latLngRequestSchema = {
@@ -831,6 +1013,18 @@ const openapiDocument = {
       name: "Pasajero - Notificaciones",
       description: `Dispositivos, suscripciones y bandeja de alertas para rol ${ROLES.PASSENGER}.`,
     },
+    {
+      name: "Admin - Paradas",
+      description: `CRUD de paradas de ruta (conceptualmente rol ${ROLES.ADMIN}).`,
+    },
+    {
+      name: "Admin - Incidentes",
+      description: `Moderacion de incidentes reportados (conceptualmente rol ${ROLES.ADMIN}).`,
+    },
+    {
+      name: "Admin - Telemetria",
+      description: `Telemetria historica y en vivo para el panel administrativo (rol ${ROLES.ADMIN}).`,
+    },
 
     {
       name: "Consumidor - Viajes",
@@ -843,6 +1037,11 @@ const openapiDocument = {
       description:
         "Google Routes API integration for route distance, duration and encoded polyline calculation.",
     },
+    {
+      name: "Tickets",
+      description:
+        "Passenger checkout and QR boarding pass generation endpoints.",
+    },
   ],
   components: {
     securitySchemes: {
@@ -854,6 +1053,8 @@ const openapiDocument = {
       },
     },
     schemas: {
+      CheckoutTicketRequest: checkoutTicketRequestSchema,
+      Ticket: ticketSchema,
       ErrorEnvelope: errorEnvelopeSchema,
       RouteGeometry: routeGeometrySchema,
       AdminRoute: adminRouteSchema,
@@ -865,6 +1066,14 @@ const openapiDocument = {
       ConsumerTrip: consumerTripSchema,
       CreateTripRequest: createTripRequestSchema,
       UpdateTripRequest: updateTripRequestSchema,
+      UpdateTripStatusRequest: updateTripStatusRequestSchema,
+      AdminStop: adminStopSchema,
+      CreateStopRequest: createStopRequestSchema,
+      UpdateStopRequest: updateStopRequestSchema,
+      AdminIncident: adminIncidentSchema,
+      ModerateIncidentRequest: moderateIncidentRequestSchema,
+      TelemetryPoint: telemetryPointSchema,
+      CurrentTelemetryPoint: currentTelemetryPointSchema,
       Driver: driverSchema,
       CreateDriverRequest: createDriverRequestSchema,
       UpdateDriverRequest: updateDriverRequestSchema,
@@ -1678,448 +1887,252 @@ const openapiDocument = {
       },
     },
   },
-  "/api/admin/senior-requests/{id}": {
-    get: {
-      tags: ["Admin - Senior Requests"],
-      summary: "Get a senior citizen verification request",
-      description:
-        "Returns the detail of a senior citizen verification request by id.",
-      parameters: [
-        {
-          name: "id",
-          in: "path",
-          required: true,
-          schema: {
-            type: "string",
-            format: "uuid",
-          },
-          example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
-        },
-      ],
-      responses: {
-        200: {
-          description: "Senior verification request returned successfully.",
-          content: {
-            "application/json": {
-              schema: {
-                $ref: "#/components/schemas/SeniorVerificationRequestDetail",
-              },
-            },
-          },
-        },
-        400: {
-          description: "Invalid request id.",
-          content: {
-            "application/json": {
-              schema: {
-                $ref: "#/components/schemas/ErrorEnvelope",
-              },
-            },
-          },
-        },
-        404: {
-          description: "Senior verification request not found.",
-          content: {
-            "application/json": {
-              schema: {
-                $ref: "#/components/schemas/ErrorEnvelope",
-              },
-              example: {
-                error: {
-                  code: ERROR_CODES.SENIOR_VERIFICATION_NOT_FOUND,
-                  message:
-                    "The requested senior verification request does not exist.",
-                  details: null,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  },
 
-  "/api/admin/senior-requests/{id}/approve": {
-    patch: {
-      tags: ["Admin - Senior Requests"],
-      summary: "Approve a senior citizen verification request",
-      description:
-        "Approves a pending senior citizen verification request, activates the user account, and marks the passenger as an authorized senior citizen.",
-      parameters: [
-        {
-          name: "id",
-          in: "path",
-          required: true,
-          schema: {
-            type: "string",
-            format: "uuid",
-          },
-          example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
-        },
-      ],
-      requestBody: {
-        required: false,
-        content: {
-          "application/json": {
-            schema: {
-              $ref: "#/components/schemas/ApproveSeniorRequestBody",
-            },
-            example: {},
-          },
-        },
-      },
-      responses: {
-        200: {
-          description: "Senior verification request approved successfully.",
-          content: {
-            "application/json": {
-              schema: {
-                $ref: "#/components/schemas/SeniorVerificationRequestDetail",
-              },
-              example: {
-                id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
-                passenger_id: "4f2504e0-4f89-41d3-9a0c-0305e82c3302",
-                document_image_bucket: "cedulas",
-                document_image_path:
-                  "passengers/senior.passenger@example.com/cedula.jpg",
-                status: "approved",
-                reviewed_by: null,
-                reviewed_at: "2026-06-20T11:00:00Z",
-                rejection_reason: null,
-                created_at: "2026-06-20T10:00:00Z",
-                updated_at: "2026-06-20T11:00:00Z",
-              },
-            },
-          },
-        },
-        400: {
-          description: "Invalid request payload.",
-          content: {
-            "application/json": {
-              schema: {
-                $ref: "#/components/schemas/ErrorEnvelope",
-              },
-            },
-          },
-        },
-        404: {
-          description: "Senior verification request not found.",
-          content: {
-            "application/json": {
-              schema: {
-                $ref: "#/components/schemas/ErrorEnvelope",
-              },
-            },
-          },
-        },
-        409: {
-          description: "The request was already reviewed.",
-          content: {
-            "application/json": {
-              schema: {
-                $ref: "#/components/schemas/ErrorEnvelope",
-              },
-              example: {
-                error: {
-                  code: ERROR_CODES.SENIOR_VERIFICATION_ALREADY_REVIEWED,
-                  message:
-                    "This senior verification request has already been reviewed.",
-                  details: null,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-
-  "/api/admin/senior-requests/{id}/reject": {
-    patch: {
-      tags: ["Admin - Senior Requests"],
-      summary: "Reject a senior citizen verification request",
-      description:
-        "Rejects a pending senior citizen verification request, keeps the user inactive, and stores a rejection reason.",
-      parameters: [
-        {
-          name: "id",
-          in: "path",
-          required: true,
-          schema: {
-            type: "string",
-            format: "uuid",
-          },
-          example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
-        },
-      ],
-      requestBody: {
-        required: true,
-        content: {
-          "application/json": {
-            schema: {
-              $ref: "#/components/schemas/RejectSeniorRequestBody",
-            },
-            example: {
-              rejection_reason: "The uploaded document is not readable.",
-            },
-          },
-        },
-      },
-      responses: {
-        200: {
-          description: "Senior verification request rejected successfully.",
-          content: {
-            "application/json": {
-              schema: {
-                $ref: "#/components/schemas/SeniorVerificationRequestDetail",
-              },
-              example: {
-                id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
-                passenger_id: "4f2504e0-4f89-41d3-9a0c-0305e82c3302",
-                document_image_bucket: "cedulas",
-                document_image_path:
-                  "passengers/senior.passenger@example.com/cedula.jpg",
-                status: "rejected",
-                reviewed_by: null,
-                reviewed_at: "2026-06-20T11:00:00Z",
-                rejection_reason: "The uploaded document is not readable.",
-                created_at: "2026-06-20T10:00:00Z",
-                updated_at: "2026-06-20T11:00:00Z",
-              },
-            },
-          },
-        },
-        400: {
-          description: "Invalid request payload.",
-          content: {
-            "application/json": {
-              schema: {
-                $ref: "#/components/schemas/ErrorEnvelope",
-              },
-            },
-          },
-        },
-        404: {
-          description: "Senior verification request not found.",
-          content: {
-            "application/json": {
-              schema: {
-                $ref: "#/components/schemas/ErrorEnvelope",
-              },
-            },
-          },
-        },
-        409: {
-          description: "The request was already reviewed.",
-          content: {
-            "application/json": {
-              schema: {
-                $ref: "#/components/schemas/ErrorEnvelope",
-              },
-              example: {
-                error: {
-                  code: ERROR_CODES.SENIOR_VERIFICATION_ALREADY_REVIEWED,
-                  message:
-                    "This senior verification request has already been reviewed.",
-                  details: null,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-    "/api/passenger/routes": {
+    "/api/admin/senior-requests/{id}": {
       get: {
-        tags: ["Consumidor - Rutas"],
-        summary: "Lista de rutas activas",
-        description: "EP-14. Devuelve solo rutas activas.",
-        security: bearerSecurity,
-        responses: {
-          200: {
-            description: "Arreglo de rutas en forma de consumidor.",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "array",
-                  items: { $ref: "#/components/schemas/ConsumerRoute" },
-                },
-              },
-            },
-          },
-          401: unauthorizedResponse,
-        },
-      },
-    },
-    "/api/admin/trips": {
-      get: {
-        tags: ["Admin - Viajes"],
-        summary: "Lista completa de viajes (todos los estados)",
-        description: "Operacion administrativa.",
-        security: bearerSecurity,
-        responses: {
-          200: {
-            description: "Arreglo de viajes en forma administrativa.",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "array",
-                  items: { $ref: "#/components/schemas/AdminTrip" },
-                },
-              },
-            },
-          },
-          401: unauthorizedResponse,
-          403: forbiddenResponse,
-        },
-      },
-      post: {
-        tags: ["Admin - Viajes"],
-        summary: "Crea un viaje",
+        tags: ["Admin - Senior Requests"],
+        summary: "Get a senior citizen verification request",
         description:
-          "Operacion administrativa. route_id, bus_id y driver_id deben existir; " +
-          "si no, la FK de la base de datos responde 409.",
-        security: bearerSecurity,
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: { $ref: "#/components/schemas/CreateTripRequest" },
+          "Returns the detail of a senior citizen verification request by id.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+              format: "uuid",
             },
+            example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
           },
-        },
-        responses: {
-          201: {
-            description: "Viaje creado.",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/CreatedResponse" },
-              },
-            },
-          },
-          401: unauthorizedResponse,
-          403: forbiddenResponse,
-          400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
-          409: errorResponse(
-            "route_id, bus_id o driver_id no corresponde a un registro existente.",
-          ),
-        },
-      },
-    },
-    "/api/admin/trips/{id}": {
-      get: {
-        tags: ["Admin - Viajes"],
-        summary: "Obtiene un viaje por id",
-        description: "Endpoint aditivo (fuera del CSV oficial). Operacion administrativa.",
-        security: bearerSecurity,
-        parameters: [idPathParam],
+        ],
         responses: {
           200: {
-            description: "Viaje en forma administrativa.",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/AdminTrip" },
-              },
-            },
-          },
-          401: unauthorizedResponse,
-          403: forbiddenResponse,
-          400: errorResponse("Id no es UUID."),
-          404: errorResponse("El viaje no existe."),
-        },
-      },
-      put: {
-        tags: ["Admin - Viajes"],
-        summary: "Edita un viaje",
-        description: "Operacion administrativa. Requiere al menos un campo.",
-        security: bearerSecurity,
-        parameters: [idPathParam],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: { $ref: "#/components/schemas/UpdateTripRequest" },
-            },
-          },
-        },
-        responses: {
-          200: {
-            description: "Viaje actualizado.",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/UpdatedResponse" },
-              },
-            },
-          },
-          401: unauthorizedResponse,
-          403: forbiddenResponse,
-          400: errorResponse("Id no es UUID o body invalido."),
-          404: errorResponse("El viaje no existe."),
-          409: errorResponse(
-            "route_id, bus_id o driver_id no corresponde a un registro existente.",
-          ),
-        },
-      },
-      delete: {
-        tags: ["Admin - Viajes"],
-        summary: "Cancela un viaje (soft-delete)",
-        description: "Operacion administrativa. Marca status=Cancelled.",
-        security: bearerSecurity,
-        parameters: [idPathParam],
-        responses: {
-          200: {
-            description: "Viaje cancelado.",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/DeletedResponse" },
-              },
-            },
-          },
-          401: unauthorizedResponse,
-          403: forbiddenResponse,
-          400: errorResponse("Id no es UUID."),
-          404: errorResponse("El viaje no existe."),
-        },
-      },
-    },
-    "/api/admin/trips/{id}/reactivate": {
-      post: {
-        tags: ["Admin - Viajes"],
-        summary: "Reactiva un viaje (deshace el soft-delete)",
-        description: "Endpoint aditivo (fuera del CSV oficial). Marca status=Scheduled.",
-        security: bearerSecurity,
-        parameters: [idPathParam],
-        responses: {
-          200: {
-            description: "Viaje reactivado.",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/ReactivatedResponse" },
-              },
-            },
-          },
-          401: unauthorizedResponse,
-          403: forbiddenResponse,
-          400: errorResponse("Id no es UUID."),
-          404: errorResponse("El viaje no existe."),
-        },
-      },
-    },
-    "/api/passenger/trips": {
-      get: {
-        tags: ["Consumidor - Viajes"],
-        summary: "Lista de viajes visibles",
-        description: "Devuelve viajes que no esten Cancelled ni Completed.",
-        security: bearerSecurity,
-        responses: {
-          200: {
-            description: "Arreglo de viajes en forma de consumidor.",
+            description: "Senior verification request returned successfully.",
             content: {
               "application/json": {
                 schema: {
-                  type: "array",
-                  items: { $ref: "#/components/schemas/ConsumerTrip" },
+                  $ref: "#/components/schemas/SeniorVerificationRequestDetail",
+                },
+              },
+            },
+          },
+          400: {
+            description: "Invalid request id.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorEnvelope",
+                },
+              },
+            },
+          },
+          404: {
+            description: "Senior verification request not found.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorEnvelope",
+                },
+                example: {
+                  error: {
+                    code: ERROR_CODES.SENIOR_VERIFICATION_NOT_FOUND,
+                    message:
+                      "The requested senior verification request does not exist.",
+                    details: null,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+
+    "/api/admin/senior-requests/{id}/approve": {
+      patch: {
+        tags: ["Admin - Senior Requests"],
+        summary: "Approve a senior citizen verification request",
+        description:
+          "Approves a pending senior citizen verification request, activates the user account, and marks the passenger as an authorized senior citizen.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+              format: "uuid",
+            },
+            example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+          },
+        ],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/ApproveSeniorRequestBody",
+              },
+              example: {},
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "Senior verification request approved successfully.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/SeniorVerificationRequestDetail",
+                },
+                example: {
+                  id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                  passenger_id: "4f2504e0-4f89-41d3-9a0c-0305e82c3302",
+                  document_image_bucket: "cedulas",
+                  document_image_path:
+                    "passengers/senior.passenger@example.com/cedula.jpg",
+                  status: "approved",
+                  reviewed_by: null,
+                  reviewed_at: "2026-06-20T11:00:00Z",
+                  rejection_reason: null,
+                  created_at: "2026-06-20T10:00:00Z",
+                  updated_at: "2026-06-20T11:00:00Z",
+                },
+              },
+            },
+          },
+          400: {
+            description: "Invalid request payload.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorEnvelope",
+                },
+              },
+            },
+          },
+          404: {
+            description: "Senior verification request not found.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorEnvelope",
+                },
+              },
+            },
+          },
+          409: {
+            description: "The request was already reviewed.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorEnvelope",
+                },
+                example: {
+                  error: {
+                    code: ERROR_CODES.SENIOR_VERIFICATION_ALREADY_REVIEWED,
+                    message:
+                      "This senior verification request has already been reviewed.",
+                    details: null,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+
+    "/api/admin/senior-requests/{id}/reject": {
+      patch: {
+        tags: ["Admin - Senior Requests"],
+        summary: "Reject a senior citizen verification request",
+        description:
+          "Rejects a pending senior citizen verification request, keeps the user inactive, and stores a rejection reason.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+              format: "uuid",
+            },
+            example: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/RejectSeniorRequestBody",
+              },
+              example: {
+                rejection_reason: "The uploaded document is not readable.",
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "Senior verification request rejected successfully.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/SeniorVerificationRequestDetail",
+                },
+                example: {
+                  id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                  passenger_id: "4f2504e0-4f89-41d3-9a0c-0305e82c3302",
+                  document_image_bucket: "cedulas",
+                  document_image_path:
+                    "passengers/senior.passenger@example.com/cedula.jpg",
+                  status: "rejected",
+                  reviewed_by: null,
+                  reviewed_at: "2026-06-20T11:00:00Z",
+                  rejection_reason: "The uploaded document is not readable.",
+                  created_at: "2026-06-20T10:00:00Z",
+                  updated_at: "2026-06-20T11:00:00Z",
+                },
+              },
+            },
+          },
+          400: {
+            description: "Invalid request payload.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorEnvelope",
+                },
+              },
+            },
+          },
+          404: {
+            description: "Senior verification request not found.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorEnvelope",
+                },
+              },
+            },
+          },
+          409: {
+            description: "The request was already reviewed.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ErrorEnvelope",
+                },
+                example: {
+                  error: {
+                    code: ERROR_CODES.SENIOR_VERIFICATION_ALREADY_REVIEWED,
+                    message:
+                      "This senior verification request has already been reviewed.",
+                    details: null,
+                  },
                 },
               },
             },
@@ -2520,40 +2533,558 @@ const openapiDocument = {
         },
       },
     },
-    "/api/google/routes/compute": {
-      post: {
-        tags: ["Google Routes"],
-        summary: "Compute route with Google Routes API",
-        description:
-          "Calculates driving distance, duration and encoded polyline between two coordinates using Google Routes API.",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                $ref: "#/components/schemas/ComputeGoogleRouteRequest",
+      "/api/passenger/routes": {
+        get: {
+          tags: ["Consumidor - Rutas"],
+          summary: "Lista de rutas activas",
+          description: "EP-14. Devuelve solo rutas activas.",
+          security: bearerSecurity,
+          responses: {
+            200: {
+              description: "Arreglo de rutas en forma de consumidor.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/ConsumerRoute" },
+                  },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+          },
+        },
+      },
+      "/api/admin/trips": {
+        get: {
+          tags: ["Admin - Viajes"],
+          summary: "Lista completa de viajes (todos los estados)",
+          description: "Operacion administrativa.",
+          security: bearerSecurity,
+          responses: {
+            200: {
+              description: "Arreglo de viajes en forma administrativa.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/AdminTrip" },
+                  },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+          },
+        },
+        post: {
+          tags: ["Admin - Viajes"],
+          summary: "Crea un viaje",
+          description:
+            "Operacion administrativa. route_id, bus_id y driver_id deben existir; " +
+            "si no, la FK de la base de datos responde 409.",
+          security: bearerSecurity,
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CreateTripRequest" },
               },
             },
           },
+          responses: {
+            201: {
+              description: "Viaje creado.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/CreatedResponse" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
+            409: errorResponse(
+              "route_id, bus_id o driver_id no corresponde a un registro existente.",
+            ),
+          },
         },
-        responses: {
-          200: {
-            description: "Route calculated successfully.",
+      },
+      "/api/admin/trips/{id}": {
+        get: {
+          tags: ["Admin - Viajes"],
+          summary: "Obtiene un viaje por id",
+          description: "Endpoint aditivo (fuera del CSV oficial). Operacion administrativa.",
+          security: bearerSecurity,
+          parameters: [idPathParam],
+          responses: {
+            200: {
+              description: "Viaje en forma administrativa.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/AdminTrip" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Id no es UUID."),
+            404: errorResponse("El viaje no existe."),
+          },
+        },
+        put: {
+          tags: ["Admin - Viajes"],
+          summary: "Edita un viaje",
+          description: "Operacion administrativa. Requiere al menos un campo.",
+          security: bearerSecurity,
+          parameters: [idPathParam],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/UpdateTripRequest" },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Viaje actualizado.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/UpdatedResponse" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Id no es UUID o body invalido."),
+            404: errorResponse("El viaje no existe."),
+            409: errorResponse(
+              "route_id, bus_id o driver_id no corresponde a un registro existente.",
+            ),
+          },
+        },
+        delete: {
+          tags: ["Admin - Viajes"],
+          summary: "Cancela un viaje (soft-delete)",
+          description: "Operacion administrativa. Marca status=Cancelled.",
+          security: bearerSecurity,
+          parameters: [idPathParam],
+          responses: {
+            200: {
+              description: "Viaje cancelado.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/DeletedResponse" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Id no es UUID."),
+            404: errorResponse("El viaje no existe."),
+          },
+        },
+      },
+      "/api/admin/trips/{id}/reactivate": {
+        post: {
+          tags: ["Admin - Viajes"],
+          summary: "Reactiva un viaje (deshace el soft-delete)",
+          description: "Endpoint aditivo (fuera del CSV oficial). Marca status=Scheduled.",
+          security: bearerSecurity,
+          parameters: [idPathParam],
+          responses: {
+            200: {
+              description: "Viaje reactivado.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ReactivatedResponse" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Id no es UUID."),
+            404: errorResponse("El viaje no existe."),
+          },
+        },
+      },
+      "/api/admin/trips/{id}/status": {
+        patch: {
+          tags: ["Admin - Viajes"],
+          summary: "Transiciona el estado de un viaje",
+          description:
+            "Endpoint aditivo (fuera del CSV oficial). Cambia status y, si es terminal " +
+            "(Completed/Cancelled), registra ended_at y detiene el tracking en tiempo real.",
+          security: bearerSecurity,
+          parameters: [idPathParam],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/UpdateTripStatusRequest" },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Viaje con el nuevo estado.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/AdminTrip" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Id no es UUID o status invalido."),
+            404: errorResponse("El viaje no existe."),
+          },
+        },
+      },
+      "/api/admin/stops": {
+        get: {
+          tags: ["Admin - Paradas"],
+          summary: "Lista de paradas de una ruta",
+          description:
+            "Endpoint aditivo (fuera del CSV oficial). Filtra por route_id opcional.",
+          security: bearerSecurity,
+          parameters: [
+            {
+              name: "route_id",
+              in: "query",
+              required: false,
+              description: "Identificador UUID de la ruta.",
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Arreglo de paradas.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/AdminStop" },
+                  },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("route_id no es UUID."),
+          },
+        },
+        post: {
+          tags: ["Admin - Paradas"],
+          summary: "Crea una parada",
+          description: "Endpoint aditivo (fuera del CSV oficial).",
+          security: bearerSecurity,
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CreateStopRequest" },
+              },
+            },
+          },
+          responses: {
+            201: {
+              description: "Parada creada.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/CreatedResponse" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
+          },
+        },
+      },
+      "/api/admin/stops/{id}": {
+        put: {
+          tags: ["Admin - Paradas"],
+          summary: "Edita una parada",
+          description: "Endpoint aditivo (fuera del CSV oficial). Requiere al menos un campo.",
+          security: bearerSecurity,
+          parameters: [idPathParam],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/UpdateStopRequest" },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Parada actualizada.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/AdminStop" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Id no es UUID o body invalido."),
+            404: errorResponse("La parada no existe."),
+          },
+        },
+        delete: {
+          tags: ["Admin - Paradas"],
+          summary: "Elimina una parada",
+          description: "Endpoint aditivo (fuera del CSV oficial).",
+          security: bearerSecurity,
+          parameters: [idPathParam],
+          responses: {
+            200: {
+              description: "Parada eliminada.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/DeletedResponse" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Id no es UUID."),
+            404: errorResponse("La parada no existe."),
+          },
+        },
+      },
+      "/api/admin/incidents": {
+        get: {
+          tags: ["Admin - Incidentes"],
+          summary: "Lista incidentes reportados (con moderacion)",
+          description:
+            "Endpoint aditivo (fuera del CSV oficial). Filtra por status " +
+            "con mayuscula inicial (Pending, Validated, Archived, Dismissed).",
+          security: bearerSecurity,
+          parameters: [
+            {
+              name: "status",
+              in: "query",
+              required: false,
+              schema: { type: "string", enum: ADMIN_REPORT_MODERATION_STATUS_VALUES },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Arreglo de incidentes en forma administrativa.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/AdminIncident" },
+                  },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("status invalido."),
+          },
+        },
+      },
+      "/api/admin/incidents/{id}": {
+        put: {
+          tags: ["Admin - Incidentes"],
+          summary: "Modera un incidente (estado de moderacion)",
+          description:
+            "Endpoint aditivo (fuera del CSV oficial). Valida, archiva o descarta un incidente.",
+          security: bearerSecurity,
+          parameters: [idPathParam],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ModerateIncidentRequest" },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Incidente moderado.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/AdminIncident" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Id no es UUID o status invalido."),
+            404: errorResponse("El incidente no existe."),
+          },
+        },
+      },
+      "/api/admin/telemetry/history": {
+        get: {
+          tags: ["Admin - Telemetria"],
+          summary: "Historial de telemetria de un viaje",
+          description:
+            "Endpoint aditivo (fuera del CSV oficial). Opcionalmente acotado por rango de tiempo.",
+          security: bearerSecurity,
+          parameters: [
+            {
+              name: "trip_id",
+              in: "query",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "start_time",
+              in: "query",
+              required: false,
+              schema: { type: "string", format: "date-time" },
+            },
+            {
+              name: "end_time",
+              in: "query",
+              required: false,
+              schema: { type: "string", format: "date-time" },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Arreglo de puntos de telemetria ordenados ascendentemente.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/TelemetryPoint" },
+                  },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("trip_id o rango de tiempo invalido."),
+          },
+        },
+      },
+      "/api/admin/telemetry/current": {
+        get: {
+          tags: ["Admin - Telemetria"],
+          summary: "Ubicacion en vivo de los viajes activos",
+          description:
+            "Endpoint aditivo (fuera del CSV oficial). Devuelve la ultima telemetria " +
+            "de cada viaje In Progress para dibujar los buses en el mapa.",
+          security: bearerSecurity,
+          responses: {
+            200: {
+              description: "Arreglo de puntos actuales por viaje activo.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/CurrentTelemetryPoint" },
+                  },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+          },
+        },
+      },
+      "/api/passenger/trips": {
+        get: {
+          tags: ["Consumidor - Viajes"],
+          summary: "Lista de viajes visibles",
+          description: "Devuelve viajes que no esten Cancelled ni Completed.",
+          security: bearerSecurity,
+          responses: {
+            200: {
+              description: "Arreglo de viajes en forma de consumidor.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/ConsumerTrip" },
+                  },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+          },
+        },
+      },
+            "/api/google/routes/compute": {
+        post: {
+          tags: ["Google Routes"],
+          summary: "Compute route with Google Routes API",
+          description:
+            "Calculates driving distance, duration and encoded polyline between two coordinates using Google Routes API.",
+          requestBody: {
+            required: true,
             content: {
               "application/json": {
                 schema: {
-                  $ref: "#/components/schemas/ComputeGoogleRouteResponse",
+                  $ref: "#/components/schemas/ComputeGoogleRouteRequest",
                 },
               },
             },
           },
-          400: errorResponse("Invalid coordinates payload."),
-          404: errorResponse("Google Routes API did not return a route."),
-          500: errorResponse("Google Routes API request failed or internal server error."),
+          responses: {
+            200: {
+              description: "Route calculated successfully.",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ComputeGoogleRouteResponse",
+                  },
+                },
+              },
+            },
+            400: errorResponse("Invalid coordinates payload."),
+            404: errorResponse("Google Routes API did not return a route."),
+            500: errorResponse("Google Routes API request failed or internal server error."),
+          },
+        },
+      },
+
+      "/api/tickets/checkout": {
+        post: {
+          tags: ["Tickets"],
+          summary: "Create ticket checkout",
+          description:
+            "Simulates a checkout flow with approximately 1.5 seconds of latency, creates a generated ticket, and returns a secure QR payload for boarding pass rendering.",
+          security: bearerSecurity,
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/CheckoutTicketRequest",
+                },
+                example: {
+                  trip_id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                },
+              },
+            },
+          },
+          responses: {
+            201: {
+              description: "Ticket generated successfully.",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/Ticket",
+                  },
+                },
+              },
+            },
+            400: errorResponse("Invalid checkout payload."),
+            401: errorResponse("Authentication is required."),
+            500: errorResponse("Ticket checkout failed."),
+          },
         },
       },
     },
-  },
-};
+  };
 
 module.exports = { openapiDocument };

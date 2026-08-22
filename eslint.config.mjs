@@ -65,6 +65,7 @@ export default [
       "**/__tests__/**/*.{js,mjs,cjs}",
       "**/*.test.{js,mjs,cjs}",
       "**/*.spec.{js,mjs,cjs}",
+      "testUtils/**/*.{js,mjs,cjs}",
     ],
     languageOptions: {
       globals: { ...globals.jest },

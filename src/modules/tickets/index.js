@@ -1,0 +1,298 @@
+"use strict";
+
+const crypto = require("crypto");
+const express = require("express");
+const { HTTP_STATUS } = require("../../../constants/httpStatus");
+const { ERROR_CODES } = require("../../../constants/errorCodes");
+const AppError = require("../../../utils/AppError");
+const asyncHandler = require("../../../utils/asyncHandler");
+const validate = require("../../../middleware/validate");
+const requireAuth = require("../../../middleware/requireAuth");
+const requireRole = require("../../../middleware/requireRole");
+const { ROLES } = require("../../../constants/roles");
+const { checkoutTicketSchema, scanTicketSchema } = require("../../../models/ticket.model");
+const ticketsRepository = require("../../../repositories/ticketsRepository");
+const passengerRepository = require("../../../repositories/passengerRepository");
+const tripsRepository = require("../../../repositories/tripsRepository");
+const { TRIP_STATUS } = require("../../../constants/tripStatus");
+
+const CHECKOUT_DELAY_MS = 1500;
+const TICKET_STATUS_GENERATED = "Generated";
+const TICKET_PAYMENT_TYPE_MOCK = "Mock";
+const TICKET_PAYMENT_TYPE_SENIOR = "Senior_Exemption";
+const TRIP_STATUSES_WITHOUT_CHECKOUT = Object.freeze([
+  TRIP_STATUS.COMPLETED,
+  TRIP_STATUS.CANCELLED,
+]);
+const SENIOR_EXEMPTION_FARE = 0;
+const MOCK_CHECKOUT_FARE = 500;
+
+function wait(milliseconds) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
+function getQrSecret() {
+  const secret = process.env.TICKET_QR_SECRET || process.env.JWT_SECRET_KEY;
+
+  if (!secret) {
+    throw new AppError(
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      ERROR_CODES.TICKET_QR_SECRET_MISSING,
+      "TICKET_QR_SECRET is not configured; tickets cannot be signed.",
+    );
+  }
+
+  return secret;
+}
+
+function generateSecureQrPayload(ticketId, passengerId, tripId, qrToken) {
+  const issuedAt = new Date().toISOString();
+
+  const payload = {
+    ticket_id: ticketId,
+    passenger_id: passengerId,
+    trip_id: tripId,
+    status: TICKET_STATUS_GENERATED,
+    qr_token: qrToken,
+    issued_at: issuedAt,
+  };
+
+  const signature = crypto
+    .createHmac("sha256", getQrSecret())
+    .update(JSON.stringify(payload))
+    .digest("hex");
+
+  return Buffer.from(
+    JSON.stringify({
+      ...payload,
+      signature,
+    }),
+  ).toString("base64url");
+}
+
+class TicketService {
+  constructor(dependencies = {}) {
+    this.ticketRepository = dependencies.ticketRepository || ticketsRepository;
+    this.driverTripService = dependencies.driverTripService || null;
+    this.passengerRepository = dependencies.passengerRepository || passengerRepository;
+    this.tripRepository = dependencies.tripRepository || tripsRepository;
+  }
+
+  async scanTicket(driverId, ticketId) {
+    if (!this.driverTripService) {
+      throw new AppError(
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        ERROR_CODES.INTERNAL_ERROR,
+        "Driver trip service is not available.",
+      );
+    }
+
+    const activeTrip = await this.driverTripService.getActiveTrip(driverId);
+
+    if (!activeTrip) {
+      throw new AppError(
+        HTTP_STATUS.FORBIDDEN,
+        ERROR_CODES.FORBIDDEN_ROLE,
+        "Driver has no active trip.",
+      );
+    }
+
+    return this.ticketRepository.scanTicketAtomic(
+      ticketId,
+      driverId,
+      activeTrip.id,
+    );
+  }
+
+  async isSeniorPassenger(passengerId) {
+    try {
+      const passenger = await this.passengerRepository.findPassengerById(passengerId);
+      return passenger ? passenger.is_senior === true : false;
+    } catch (error) {
+      console.error(
+        "Error reading passenger profile during checkout:",
+        error.message,
+      );
+      return false;
+    }
+  }
+
+  async checkout(passengerId, payload) {
+    const trip = await this.tripRepository.getTripById(payload.trip_id);
+
+    if (!trip) {
+      throw new AppError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_CODES.TRIP_NOT_FOUND,
+        "The requested trip does not exist.",
+      );
+    }
+
+    if (TRIP_STATUSES_WITHOUT_CHECKOUT.includes(trip.status)) {
+      throw new AppError(
+        HTTP_STATUS.CONFLICT,
+        ERROR_CODES.TICKET_TRIP_NOT_AVAILABLE,
+        `Tickets cannot be issued for a trip in status ${trip.status}.`,
+      );
+    }
+
+    const existingTicket =
+      await this.ticketRepository.findGeneratedByPassengerAndTrip(
+        passengerId,
+        payload.trip_id,
+      );
+
+    if (existingTicket) {
+      throw new AppError(
+        HTTP_STATUS.CONFLICT,
+        ERROR_CODES.TICKET_ALREADY_GENERATED,
+        "The passenger already holds a generated ticket for this trip.",
+      );
+    }
+
+    const isSenior = await this.isSeniorPassenger(passengerId);
+
+    if (!isSenior) {
+      await wait(CHECKOUT_DELAY_MS);
+    }
+
+    const draftTicket = await this.ticketRepository.createTicket({
+      passenger_id: passengerId,
+      trip_id: payload.trip_id,
+      status: TICKET_STATUS_GENERATED,
+      payment_type: isSenior ? TICKET_PAYMENT_TYPE_SENIOR : TICKET_PAYMENT_TYPE_MOCK,
+      fare: isSenior ? SENIOR_EXEMPTION_FARE : MOCK_CHECKOUT_FARE,
+      qr_payload: "pending",
+    });
+
+    const qrToken = crypto.randomBytes(32).toString("base64url");
+
+    const qrPayload = generateSecureQrPayload(
+      draftTicket.id,
+      passengerId,
+      payload.trip_id,
+      qrToken,
+    );
+
+    return this.ticketRepository.updateTicketQrPayload(
+      draftTicket.id,
+      qrPayload,
+      qrToken,
+    );
+  }
+
+  async listByPassenger(passengerId) {
+    return this.ticketRepository.findByPassengerId(passengerId);
+  }
+}
+
+class TicketController {
+  constructor(service) {
+    this.service = service;
+    this.checkout = asyncHandler(this.checkout.bind(this));
+    this.listMine = asyncHandler(this.listMine.bind(this));
+    this.scan = asyncHandler(this.scan.bind(this));
+  }
+
+  async scan(req, res) {
+    const driverId = req.auth.userId;
+
+    if (!driverId) {
+      throw new AppError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_CODES.UNAUTHORIZED,
+        "Authenticated driver is required.",
+      );
+    }
+
+    const ticket = await this.service.scanTicket(
+      driverId,
+      req.valid.body.ticket_id,
+    );
+
+    res.status(HTTP_STATUS.OK).json(ticket);
+  }
+
+  async checkout(req, res) {
+    const passengerId = req.auth.userId;
+
+    if (!passengerId) {
+      throw new AppError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_CODES.UNAUTHORIZED,
+        "Authenticated passenger is required.",
+      );
+    }
+
+    const ticket = await this.service.checkout(passengerId, req.valid.body);
+
+    res.status(HTTP_STATUS.CREATED).json(ticket);
+  }
+
+  async listMine(req, res) {
+    const passengerId = req.auth.userId;
+
+    if (!passengerId) {
+      throw new AppError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_CODES.UNAUTHORIZED,
+        "Authenticated passenger is required.",
+      );
+    }
+
+    const tickets = await this.service.listByPassenger(passengerId);
+
+    res.status(HTTP_STATUS.OK).json(tickets);
+  }
+}
+
+function createTicketModule(dependencies = {}) {
+  const ticketService =
+    dependencies.ticketService ||
+    new TicketService({
+      ticketRepository: dependencies.ticketRepository,
+      driverTripService: dependencies.driverTripService,
+      passengerRepository: dependencies.passengerRepository,
+    });
+
+  const ticketController =
+    dependencies.ticketController || new TicketController(ticketService);
+
+  return {
+    ticketService,
+    ticketController,
+  };
+}
+
+function createTicketsRouter(dependencies = {}) {
+  const { ticketController } = createTicketModule(dependencies);
+  const router = express.Router();
+
+  router.use(requireAuth);
+
+  router.get("/my", ticketController.listMine);
+
+  router.post(
+    "/checkout",
+    validate({ body: checkoutTicketSchema }),
+    ticketController.checkout,
+  );
+
+  router.post(
+    "/scan",
+    requireRole(ROLES.DRIVER),
+    validate({ body: scanTicketSchema }, ERROR_CODES.TICKET_SCAN_FAILED),
+    ticketController.scan,
+  );
+
+  return router;
+}
+
+module.exports = {
+  TicketService,
+  TicketController,
+  createTicketModule,
+  createTicketsRouter,
+};

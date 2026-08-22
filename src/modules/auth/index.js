@@ -103,19 +103,36 @@ class AuthService {
     return role;
   }
 
-  buildLoginResponse(session, authUser, dbUser) {
+  async findPassengerProfile(role, userId) {
+    if (role !== PASSENGER_ROLE) {
+      return null;
+    }
+    if (typeof this.passengerRepository.findPassengerById !== "function") {
+      return null;
+    }
+    return this.passengerRepository.findPassengerById(userId);
+  }
+
+  buildLoginResponse(session, authUser, dbUser, passenger) {
     const role = this.normalizeUserRole(authUser, dbUser);
+    const user = {
+      id: authUser.id,
+      email: authUser.email,
+      role,
+      name: dbUser && dbUser.name ? dbUser.name : authUser.user_metadata ? authUser.user_metadata.name : null,
+    };
+
+    if (role === PASSENGER_ROLE) {
+      user.is_senior = passenger ? passenger.is_senior === true : false;
+      user.senior_status = passenger && passenger.senior_status ? passenger.senior_status : "not_applicable";
+    }
+
     return {
       access_token: session.access_token,
       refresh_token: session.refresh_token,
       expires_in: session.expires_in,
       token_type: session.token_type,
-      user: {
-        id: authUser.id,
-        email: authUser.email,
-        role,
-        name: dbUser && dbUser.name ? dbUser.name : authUser.user_metadata ? authUser.user_metadata.name : null,
-      },
+      user,
       capabilities: ROLE_CAPABILITIES[role] || [],
     };
   }
@@ -183,7 +200,31 @@ class AuthService {
     }
 
     const dbUser = await this.userRepository.findUserById(data.user.id);
-    const result = this.buildLoginResponse(data.session, data.user, dbUser);
+
+    if (dbUser && dbUser.is_active === false) {
+      await this.writeLoginAudit({
+        user_id: data.user.id,
+        email: data.user.email,
+        role: this.normalizeUserRole(data.user, dbUser),
+        auth_strategy: "password",
+        oauth_provider: null,
+        was_successful: false,
+        failure_code: ERROR_CODES.AUTH_ACCOUNT_DEACTIVATED,
+        ip_address: context.ipAddress || null,
+        user_agent: context.userAgent || null,
+      });
+      throw new AppError(
+        HTTP_STATUS.FORBIDDEN,
+        ERROR_CODES.AUTH_ACCOUNT_DEACTIVATED,
+        "This account is deactivated and cannot sign in.",
+      );
+    }
+
+    const passenger = await this.findPassengerProfile(
+      this.normalizeUserRole(data.user, dbUser),
+      data.user.id,
+    );
+    const result = this.buildLoginResponse(data.session, data.user, dbUser, passenger);
 
     await this.writeLoginAudit({
       user_id: data.user.id,
@@ -217,7 +258,7 @@ class AuthService {
       throw new AppError(
         HTTP_STATUS.FORBIDDEN,
         ERROR_CODES.AUTH_ADMIN_REQUIRED,
-        "This interface is restricted to pre-verified administrators.",
+        "Esta consola es solo para cuentas de administrador.",
       );
     }
     return result;
