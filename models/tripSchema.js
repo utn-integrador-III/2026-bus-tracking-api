@@ -26,6 +26,8 @@ const updateTripSchema = z
     departure_time: timestamp,
     arrival_time: timestamp.nullable(),
     status,
+    status_reason: z.string().trim().min(1).max(500).nullable(),
+    status_metadata: z.record(z.string(), z.unknown()),
   })
   .partial()
   .strict()

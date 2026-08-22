@@ -48,6 +48,17 @@ describe("documentacion OpenAPI", () => {
     ]);
     expect(Object.keys(paths["/api/admin/trips/{id}/reactivate"])).toContain("post");
     expect(Object.keys(paths["/api/passenger/trips"])).toContain("get");
+    expect(Object.keys(paths["/api/driver/trips/{id}/delay"])).toContain("post");
+    expect(Object.keys(paths["/api/driver/trips/{id}/detour"])).toContain("post");
+    expect(Object.keys(paths["/api/passenger/trips/{id}/subscription"]).sort()).toEqual([
+      "delete",
+      "post",
+    ]);
+    expect(Object.keys(paths["/api/passenger/push-devices/{installationId}"]).sort()).toEqual([
+      "delete",
+      "put",
+    ]);
+    expect(Object.keys(paths["/api/passenger/notifications"])).toContain("get");
   });
 
   test("el spec declara bearer auth en los endpoints protegidos", async () => {
@@ -59,6 +70,8 @@ describe("documentacion OpenAPI", () => {
     expect(paths["/api/passenger/routes"].get.security).toEqual([{ bearerAuth: [] }]);
     expect(paths["/api/admin/trips"].post.security).toEqual([{ bearerAuth: [] }]);
     expect(paths["/api/passenger/incidents"].post.security).toEqual([{ bearerAuth: [] }]);
+    expect(paths["/api/driver/trips/{id}/delay"].post.security).toEqual([{ bearerAuth: [] }]);
+    expect(paths["/api/passenger/notifications"].get.security).toEqual([{ bearerAuth: [] }]);
     expect(paths["/api/auth/session"].get.security).toEqual([{ bearerAuth: [] }]);
   });
 
@@ -81,4 +94,3 @@ describe("documentacion OpenAPI", () => {
   expect(response.body.paths["/api/auth/driver/login"]).toHaveProperty("post");
 });
 });
-

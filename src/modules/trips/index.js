@@ -50,6 +50,10 @@ class TripPresenter {
       departure_time: row.departure_time,
       arrival_time: row.arrival_time,
       status: row.status,
+      status_reason: row.status_reason,
+      status_metadata: row.status_metadata,
+      status_changed_by: row.status_changed_by,
+      status_changed_at: row.status_changed_at,
       created_at: row.created_at,
       started_at: row.started_at,
       ended_at: row.ended_at,
@@ -137,7 +141,7 @@ class TripService {
     return this.tripRepository.createTrip(trip);
   }
 
-  async update(id, payload) {
+  async update(id, payload, actorUserId) {
     const existing = await this.tripRepository.getTripById(id);
     if (!existing) {
       throw this.notFound();
@@ -162,6 +166,15 @@ class TripService {
     if (payload.status !== undefined) {
       patch.status = payload.status;
     }
+    if (payload.status_reason !== undefined) {
+      patch.status_reason = payload.status_reason;
+    }
+    if (payload.status_metadata !== undefined) {
+      patch.status_metadata = payload.status_metadata;
+    }
+    if (actorUserId && (payload.status !== undefined || payload.route_id !== undefined)) {
+      patch.status_changed_by = actorUserId;
+    }
 
     const updated = await this.tripRepository.updateTrip(id, patch);
     if (!updated) {
@@ -170,18 +183,28 @@ class TripService {
     return updated;
   }
 
-  async deactivate(id) {
+  async deactivate(id, actorUserId) {
     const existing = await this.tripRepository.getTripById(id);
     if (!existing) {
       throw this.notFound();
     }
+    if (actorUserId) {
+      return this.tripRepository.setTripStatus(id, TRIP_STATUS.CANCELLED, {
+        status_changed_by: actorUserId,
+      });
+    }
     return this.tripRepository.setTripStatus(id, TRIP_STATUS.CANCELLED);
   }
 
-  async reactivate(id) {
+  async reactivate(id, actorUserId) {
     const existing = await this.tripRepository.getTripById(id);
     if (!existing) {
       throw this.notFound();
+    }
+    if (actorUserId) {
+      return this.tripRepository.setTripStatus(id, TRIP_STATUS.SCHEDULED, {
+        status_changed_by: actorUserId,
+      });
     }
     return this.tripRepository.setTripStatus(id, TRIP_STATUS.SCHEDULED);
   }
@@ -216,17 +239,17 @@ class TripController {
   }
 
   async updateTrip(req, res) {
-    await this.tripService.update(req.valid.params.id, req.valid.body);
+    await this.tripService.update(req.valid.params.id, req.valid.body, req.auth.userId);
     res.status(HTTP_STATUS.OK).json(this.tripPresenter.updated());
   }
 
   async deactivateTrip(req, res) {
-    await this.tripService.deactivate(req.valid.params.id);
+    await this.tripService.deactivate(req.valid.params.id, req.auth.userId);
     res.status(HTTP_STATUS.OK).json(this.tripPresenter.deleted());
   }
 
   async reactivateTrip(req, res) {
-    await this.tripService.reactivate(req.valid.params.id);
+    await this.tripService.reactivate(req.valid.params.id, req.auth.userId);
     res.status(HTTP_STATUS.OK).json(this.tripPresenter.reactivated());
   }
 

@@ -7,7 +7,7 @@ const { ERROR_CODES } = require("../../../../constants/errorCodes");
 
 const TABLE = "trips";
 const COLUMNS =
-  "id, route_id, bus_id, driver_id, departure_time, arrival_time, status, created_at, started_at, ended_at";
+  "id, route_id, bus_id, driver_id, departure_time, arrival_time, status, status_reason, status_metadata, status_changed_by, status_changed_at, created_at, started_at, ended_at";
 
 const FOREIGN_KEY_VIOLATION = "23503";
 
@@ -86,10 +86,10 @@ class SupabaseTripRepository {
     return data || null;
   }
 
-  async setTripStatus(id, status) {
+  async setTripStatus(id, status, context = {}) {
     const { data, error } = await getServiceClient()
       .from(TABLE)
-      .update({ status })
+      .update({ status, ...context })
       .eq("id", id)
       .select(COLUMNS)
       .maybeSingle();

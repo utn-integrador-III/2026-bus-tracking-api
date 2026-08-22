@@ -14,10 +14,12 @@ module.exports = {
     "repositories/**/*.{js,mjs,cjs}",
     "routes/**/*.{js,mjs,cjs}",
     "services/**/*.{js,mjs,cjs}",
+    "src/**/*.{js,mjs,cjs}",
     "tasks/**/*.{js,mjs,cjs}",
     "utils/**/*.{js,mjs,cjs}",
     "views/**/*.{js,mjs,cjs}",
   ],
   coverageDirectory: "coverage",
   testEnvironment: "node",
+  testPathIgnorePatterns: ["/node_modules/", "/supabase/functions/"],
 };

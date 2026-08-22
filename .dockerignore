@@ -1,5 +1,7 @@
 node_modules
+**/node_modules
 .git
+**/.git
 .env
 .env.*
 *.md
@@ -13,6 +15,9 @@ jest.config.cjs
 coverage
 tools
 scripts
+2026-bus-tracking-api
+supabase/.temp
+supabase/functions/node_modules
 __pycache__
 *.pyc
 .DS_Store

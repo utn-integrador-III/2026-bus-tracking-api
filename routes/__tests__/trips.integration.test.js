@@ -217,7 +217,9 @@ describe("DELETE /api/admin/trips/:id", () => {
       .set("Authorization", `Bearer ${AUTH_TOKEN}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ deleted: true });
-    expect(tripsRepository.setTripStatus).toHaveBeenCalledWith(UUID, "Cancelled");
+    expect(tripsRepository.setTripStatus).toHaveBeenCalledWith(UUID, "Cancelled", {
+      status_changed_by: adminUser.id,
+    });
   });
 
   test("viaje inexistente -> 404", async () => {
@@ -240,7 +242,9 @@ describe("POST /api/admin/trips/:id/reactivate", () => {
       .set("Authorization", `Bearer ${AUTH_TOKEN}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ reactivated: true });
-    expect(tripsRepository.setTripStatus).toHaveBeenCalledWith(UUID, "Scheduled");
+    expect(tripsRepository.setTripStatus).toHaveBeenCalledWith(UUID, "Scheduled", {
+      status_changed_by: adminUser.id,
+    });
   });
 
   test("viaje inexistente -> 404", async () => {
