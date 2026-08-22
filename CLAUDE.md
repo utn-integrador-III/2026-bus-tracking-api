@@ -17,7 +17,7 @@ Backend REST + real-time API for a **Real-Time Bus Tracking** application (think
 | Auth | **Supabase Auth** — JWT validated on every protected request |
 | Real-time | **Supabase Realtime** WebSocket channels for telemetry broadcast |
 | Routing / ETA | **OSRM** (Open Source Routing Machine), with path caching |
-| Push notifications | **Expo Push API** |
+| Push notifications | **Firebase Cloud Messaging HTTP v1 via Supabase Edge Functions** |
 
 > **The `__init__.py` files in every folder are a mistake.** This is a Node/Express project, not Python. New code goes in `.js` modules; do not add Python files. The `__init__.py` placeholders should be removed as folders get real implementations. `package.json` declares `main: index.js`, which does not exist yet and is the expected entry point to create.
 
@@ -81,7 +81,7 @@ Cross-cutting folders:
 - **`config/`** — environment/config loading.
 - **`views/`** — response presenters/serializers (HTTP-layer output shaping).
 
-**NFR-14 is a hard design constraint:** keep services modular and decoupled so the mapping provider (OSRM) and push vendor (Expo) can be swapped without touching business logic. Route external-provider calls through a dedicated service, never inline in controllers/repositories.
+**NFR-14 is a hard design constraint:** keep services modular and decoupled so the mapping provider (OSRM) and push vendor (FCM) can be swapped without touching business logic. Route external-provider calls through a dedicated service, never inline in controllers/repositories.
 
 ## Domain rules that span multiple files
 

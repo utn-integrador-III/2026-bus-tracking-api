@@ -40,17 +40,23 @@ describe("auth routes", () => {
 
   describe("POST /api/auth/senior-document/upload-url", () => {
     test("returns 200 when the upload URL is created", async () => {
+      userRepository.findUserById.mockResolvedValue(null);
+      verifyAccessToken.mockResolvedValue({
+        id: validUserId,
+        app_metadata: { role: ROLES.PASSENGER },
+      });
+
       authService.createSeniorDocumentUploadUrl.mockResolvedValue({
         bucket: "cedulas",
-        path: "passengers/senior.passenger@example.com/cedula.jpg",
+        path: `passengers/${validUserId}/cedula.jpg`,
         signed_url: "https://storage.example.com/upload",
         token: "upload-token",
       });
 
       const response = await request(app)
         .post("/api/auth/senior-document/upload-url")
+        .set("Authorization", `Bearer ${authToken}`)
         .send({
-          email: "senior.passenger@example.com",
           file_name: "cedula.jpg",
           content_type: "image/jpeg",
         });
@@ -58,24 +64,62 @@ describe("auth routes", () => {
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         bucket: "cedulas",
-        path: "passengers/senior.passenger@example.com/cedula.jpg",
+        path: `passengers/${validUserId}/cedula.jpg`,
         signed_url: "https://storage.example.com/upload",
         token: "upload-token",
       });
       expect(authService.createSeniorDocumentUploadUrl).toHaveBeenCalledWith({
-        email: "senior.passenger@example.com",
         file_name: "cedula.jpg",
         content_type: "image/jpeg",
+        user_id: validUserId,
       });
     });
 
-    test("returns 400 for unsupported content types", async () => {
+    test("returns 401 when no bearer token is provided", async () => {
       const response = await request(app)
         .post("/api/auth/senior-document/upload-url")
         .send({
-          email: "senior.passenger@example.com",
+          file_name: "cedula.jpg",
+          content_type: "image/jpeg",
+        });
+
+      expect(response.status).toBe(401);
+      expect(authService.createSeniorDocumentUploadUrl).not.toHaveBeenCalled();
+    });
+
+    test("returns 400 for unsupported content types", async () => {
+      userRepository.findUserById.mockResolvedValue(null);
+      verifyAccessToken.mockResolvedValue({
+        id: validUserId,
+        app_metadata: { role: ROLES.PASSENGER },
+      });
+
+      const response = await request(app)
+        .post("/api/auth/senior-document/upload-url")
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({
           file_name: "cedula.pdf",
           content_type: "application/pdf",
+        });
+
+      expect(response.status).toBe(400);
+      expect(authService.createSeniorDocumentUploadUrl).not.toHaveBeenCalled();
+    });
+
+    test("rejects an email supplied in the body", async () => {
+      userRepository.findUserById.mockResolvedValue(null);
+      verifyAccessToken.mockResolvedValue({
+        id: validUserId,
+        app_metadata: { role: ROLES.PASSENGER },
+      });
+
+      const response = await request(app)
+        .post("/api/auth/senior-document/upload-url")
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({
+          email: "victim@example.com",
+          file_name: "cedula.jpg",
+          content_type: "image/jpeg",
         });
 
       expect(response.status).toBe(400);

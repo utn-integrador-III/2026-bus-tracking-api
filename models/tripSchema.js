@@ -26,12 +26,20 @@ const updateTripSchema = z
     departure_time: timestamp,
     arrival_time: timestamp.nullable(),
     status,
+    status_reason: z.string().trim().min(1).max(500).nullable(),
+    status_metadata: z.record(z.string(), z.unknown()),
   })
   .partial()
   .strict()
   .refine((data) => Object.keys(data).length > 0, {
     message: "Debe enviar al menos un campo para actualizar.",
   });
+
+const updateTripStatusSchema = z
+  .object({
+    status,
+  })
+  .strict();
 
 const idParamSchema = z
   .object({
@@ -42,5 +50,6 @@ const idParamSchema = z
 module.exports = {
   createTripSchema,
   updateTripSchema,
+  updateTripStatusSchema,
   idParamSchema,
 };

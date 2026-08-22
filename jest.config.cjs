@@ -14,10 +14,20 @@ module.exports = {
     "repositories/**/*.{js,mjs,cjs}",
     "routes/**/*.{js,mjs,cjs}",
     "services/**/*.{js,mjs,cjs}",
+    "src/**/*.{js,mjs,cjs}",
     "tasks/**/*.{js,mjs,cjs}",
     "utils/**/*.{js,mjs,cjs}",
     "views/**/*.{js,mjs,cjs}",
   ],
   coverageDirectory: "coverage",
+  coverageThreshold: {
+    global: {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80,
+    },
+  },
   testEnvironment: "node",
+  testPathIgnorePatterns: ["/node_modules/", "/supabase/functions/"],
 };

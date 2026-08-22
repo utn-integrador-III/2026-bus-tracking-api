@@ -217,7 +217,9 @@ describe("DELETE /api/admin/trips/:id", () => {
       .set("Authorization", `Bearer ${AUTH_TOKEN}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ deleted: true });
-    expect(tripsRepository.setTripStatus).toHaveBeenCalledWith(UUID, "Cancelled");
+    expect(tripsRepository.setTripStatus).toHaveBeenCalledWith(UUID, "Cancelled", {
+      status_changed_by: adminUser.id,
+    });
   });
 
   test("viaje inexistente -> 404", async () => {
@@ -240,7 +242,9 @@ describe("POST /api/admin/trips/:id/reactivate", () => {
       .set("Authorization", `Bearer ${AUTH_TOKEN}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ reactivated: true });
-    expect(tripsRepository.setTripStatus).toHaveBeenCalledWith(UUID, "Scheduled");
+    expect(tripsRepository.setTripStatus).toHaveBeenCalledWith(UUID, "Scheduled", {
+      status_changed_by: adminUser.id,
+    });
   });
 
   test("viaje inexistente -> 404", async () => {
@@ -251,5 +255,70 @@ describe("POST /api/admin/trips/:id/reactivate", () => {
       .set("Authorization", `Bearer ${AUTH_TOKEN}`);
     expect(res.status).toBe(404);
     expect(tripsRepository.setTripStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /api/admin/trips/:id/status", () => {
+  test("transiciona a estado terminal -> 200 y detiene el tracking", async () => {
+    verifyAccessToken.mockResolvedValue(adminUser);
+    tripsRepository.getTripById.mockResolvedValue({ ...sampleRow, status: "In Progress" });
+    tripsRepository.updateTrip.mockResolvedValue({
+      ...sampleRow,
+      status: "Completed",
+      ended_at: expect.any(String),
+    });
+    const res = await request(app)
+      .patch(`/api/admin/trips/${UUID}/status`)
+      .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+      .send({ status: "Completed" });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("status", "Completed");
+    expect(tripsRepository.updateTrip).toHaveBeenCalledWith(
+      UUID,
+      expect.objectContaining({ status: "Completed", ended_at: expect.any(String) }),
+    );
+  });
+
+  test("transiciona a estado no terminal -> 200", async () => {
+    verifyAccessToken.mockResolvedValue(adminUser);
+    tripsRepository.getTripById.mockResolvedValue({ ...sampleRow, status: "Scheduled" });
+    tripsRepository.setTripStatus.mockResolvedValue({ ...sampleRow, status: "Pending" });
+    const res = await request(app)
+      .patch(`/api/admin/trips/${UUID}/status`)
+      .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+      .send({ status: "Pending" });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("status", "Pending");
+    expect(tripsRepository.setTripStatus).toHaveBeenCalledWith(UUID, "Pending");
+    expect(tripsRepository.updateTrip).not.toHaveBeenCalled();
+  });
+
+  test("viaje inexistente -> 404", async () => {
+    verifyAccessToken.mockResolvedValue(adminUser);
+    tripsRepository.getTripById.mockResolvedValue(null);
+    const res = await request(app)
+      .patch(`/api/admin/trips/${UUID}/status`)
+      .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+      .send({ status: "Completed" });
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe("TRIP_NOT_FOUND");
+  });
+
+  test("status invalido -> 400", async () => {
+    verifyAccessToken.mockResolvedValue(adminUser);
+    const res = await request(app)
+      .patch(`/api/admin/trips/${UUID}/status`)
+      .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+      .send({ status: "Hippo" });
+    expect(res.status).toBe(400);
+  });
+
+  test("status ausente -> 400", async () => {
+    verifyAccessToken.mockResolvedValue(adminUser);
+    const res = await request(app)
+      .patch(`/api/admin/trips/${UUID}/status`)
+      .set("Authorization", `Bearer ${AUTH_TOKEN}`)
+      .send({});
+    expect(res.status).toBe(400);
   });
 });

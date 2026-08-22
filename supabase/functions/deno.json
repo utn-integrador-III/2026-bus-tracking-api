@@ -1,0 +1,16 @@
+{
+  "nodeModulesDir": "auto",
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1",
+    "@supabase/server": "npm:@supabase/server@^1",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@^2",
+    "google-auth-library": "npm:google-auth-library@^10"
+  },
+  "compilerOptions": {
+    "strict": true
+  },
+  "tasks": {
+    "check": "deno check notification-worker/index.ts",
+    "test": "deno test _shared/fcm-provider.test.ts --allow-env --allow-net"
+  }
+}

@@ -290,19 +290,6 @@ describe("TicketService", () => {
     expect(ticketService.passengerRepository).toBe(passengerRepository);
   });
 
-  test("forwards the injected passengerRepository through createTicketModule", () => {
-    const ticketRepository = {};
-    const passengerRepository = { findPassengerById: jest.fn() };
-
-    const { ticketService } = createTicketModule({
-      ticketRepository,
-      passengerRepository,
-    });
-
-    expect(ticketService.ticketRepository).toBe(ticketRepository);
-    expect(ticketService.passengerRepository).toBe(passengerRepository);
-  });
-
   test("bypasses payment delay and sets Senior_Exemption for senior passengers", async () => {
     const passengerRepository = {
       findPassengerById: jest.fn().mockResolvedValue({ is_senior: true }),

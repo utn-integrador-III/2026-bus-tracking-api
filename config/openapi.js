@@ -3,6 +3,9 @@
 const { ROLES } = require("../constants/roles");
 const { ERROR_CODES } = require("../constants/errorCodes");
 const { TRIP_STATUS_VALUES } = require("../constants/tripStatus");
+const {
+  ADMIN_REPORT_MODERATION_STATUS_VALUES,
+} = require("../constants/adminReportModerationStatus");
 
 const errorEnvelopeSchema = {
   type: "object",
@@ -166,6 +169,10 @@ const adminTripSchema = {
     departure_time: { type: "string", format: "date-time" },
     arrival_time: { type: "string", format: "date-time", nullable: true },
     status: { $ref: "#/components/schemas/TripStatus" },
+    status_reason: { type: "string", nullable: true },
+    status_metadata: { type: "object", additionalProperties: true },
+    status_changed_by: { type: "string", format: "uuid", nullable: true },
+    status_changed_at: { type: "string", format: "date-time", nullable: true },
     created_at: { type: "string", format: "date-time", nullable: true },
     started_at: { type: "string", format: "date-time", nullable: true },
     ended_at: { type: "string", format: "date-time", nullable: true },
@@ -272,8 +279,133 @@ const updateTripRequestSchema = {
     departure_time: { type: "string", format: "date-time" },
     arrival_time: { type: "string", format: "date-time", nullable: true },
     status: { $ref: "#/components/schemas/TripStatus" },
+    status_reason: { type: "string", minLength: 1, maxLength: 500, nullable: true },
+    status_metadata: { type: "object", additionalProperties: true },
   },
   example: { status: "Delayed" },
+};
+
+const updateTripStatusRequestSchema = {
+  type: "object",
+  required: ["status"],
+  additionalProperties: false,
+  properties: {
+    status: { $ref: "#/components/schemas/TripStatus" },
+  },
+  example: { status: "In Progress" },
+};
+
+const adminStopSchema = {
+  type: "object",
+  required: ["id", "route_id", "name", "latitude", "longitude", "stop_order"],
+  properties: {
+    id: { type: "string", format: "uuid" },
+    route_id: { type: "string", format: "uuid" },
+    name: { type: "string", example: "Parada Central" },
+    latitude: { type: "number", example: 9.9763 },
+    longitude: { type: "number", example: -84.8384 },
+    stop_order: { type: "integer", minimum: 0, example: 1 },
+    geofence_radius_meters: { type: "integer", minimum: 1, example: 500 },
+  },
+};
+
+const createStopRequestSchema = {
+  type: "object",
+  required: ["route_id", "name", "latitude", "longitude", "stop_order"],
+  additionalProperties: false,
+  properties: {
+    route_id: { type: "string", format: "uuid" },
+    name: { type: "string", minLength: 1, maxLength: 255 },
+    latitude: { type: "number", minimum: -90, maximum: 90 },
+    longitude: { type: "number", minimum: -180, maximum: 180 },
+    stop_order: { type: "integer", minimum: 0 },
+    geofence_radius_meters: { type: "integer", minimum: 1, default: 500 },
+  },
+};
+
+const updateStopRequestSchema = {
+  type: "object",
+  minProperties: 1,
+  additionalProperties: false,
+  properties: {
+    route_id: { type: "string", format: "uuid" },
+    name: { type: "string", minLength: 1, maxLength: 255 },
+    latitude: { type: "number", minimum: -90, maximum: 90 },
+    longitude: { type: "number", minimum: -180, maximum: 180 },
+    stop_order: { type: "integer", minimum: 0 },
+    geofence_radius_meters: { type: "integer", minimum: 1 },
+  },
+  example: { name: "Parada Central Norte" },
+};
+
+const adminIncidentSchema = {
+  type: "object",
+  required: [
+    "id",
+    "trip_id",
+    "user_id",
+    "type",
+    "latitude",
+    "longitude",
+    "timestamp",
+    "status",
+  ],
+  properties: {
+    id: { type: "string", format: "uuid" },
+    trip_id: { type: "string", format: "uuid" },
+    user_id: { type: "string", format: "uuid" },
+    type: { type: "string", example: "Traffic_Congestion" },
+    description: { type: "string", nullable: true },
+    latitude: { type: "number", example: 9.9763 },
+    longitude: { type: "number", example: -84.8384 },
+    timestamp: { type: "string", format: "date-time" },
+    status: {
+      type: "string",
+      enum: ADMIN_REPORT_MODERATION_STATUS_VALUES,
+    },
+  },
+};
+
+const moderateIncidentRequestSchema = {
+  type: "object",
+  required: ["status"],
+  additionalProperties: false,
+  properties: {
+    status: {
+      type: "string",
+      enum: ADMIN_REPORT_MODERATION_STATUS_VALUES,
+    },
+  },
+  example: { status: "Validated" },
+};
+
+const telemetryPointSchema = {
+  type: "object",
+  required: ["id", "trip_id", "latitude", "longitude", "timestamp"],
+  properties: {
+    id: { type: "integer", format: "int64" },
+    trip_id: { type: "string", format: "uuid" },
+    latitude: { type: "number", example: 9.9763 },
+    longitude: { type: "number", example: -84.8384 },
+    speed: { type: "number", nullable: true },
+    heading: { type: "number", nullable: true },
+    timestamp: { type: "string", format: "date-time" },
+  },
+};
+
+const currentTelemetryPointSchema = {
+  type: "object",
+  required: ["trip_id", "route_id", "status", "latitude", "longitude", "timestamp"],
+  properties: {
+    trip_id: { type: "string", format: "uuid" },
+    route_id: { type: "string", format: "uuid" },
+    status: { type: "string", example: "In Progress" },
+    latitude: { type: "number", example: 9.9763 },
+    longitude: { type: "number", example: -84.8384 },
+    speed: { type: "number", nullable: true },
+    heading: { type: "number", nullable: true },
+    timestamp: { type: "string", format: "date-time" },
+  },
 };
 
 const latLngRequestSchema = {
@@ -681,6 +813,129 @@ const createPassengerIncidentResponseSchema = {
   },
 };
 
+const pushDeviceSchema = {
+  type: "object",
+  required: ["id", "user_id", "installation_id", "target_type", "platform", "is_active"],
+  properties: {
+    id: { type: "string", format: "uuid" },
+    user_id: { type: "string", format: "uuid" },
+    installation_id: { type: "string", format: "uuid" },
+    target_type: { type: "string", enum: ["fid", "registration_token"] },
+    platform: { type: "string", enum: ["android", "ios", "web"] },
+    app_version: { type: "string", nullable: true },
+    is_active: { type: "boolean" },
+    last_seen_at: { type: "string", format: "date-time" },
+  },
+};
+
+const upsertPushDeviceRequestSchema = {
+  type: "object",
+  required: ["target_type", "target_value", "platform"],
+  additionalProperties: false,
+  properties: {
+    target_type: { type: "string", enum: ["fid", "registration_token"] },
+    target_value: { type: "string", minLength: 20, maxLength: 4096 },
+    platform: { type: "string", enum: ["android", "ios", "web"] },
+    app_version: { type: "string", minLength: 1, maxLength: 50 },
+  },
+};
+
+const notificationPreferencesSchema = {
+  type: "object",
+  minProperties: 1,
+  additionalProperties: false,
+  properties: {
+    push_enabled: { type: "boolean" },
+    terminal_departure: { type: "boolean" },
+    delay: { type: "boolean" },
+    detour: { type: "boolean" },
+    cancellation: { type: "boolean" },
+    route_restored: { type: "boolean" },
+  },
+};
+
+const tripSubscriptionSchema = {
+  type: "object",
+  properties: {
+    id: { type: "string", format: "uuid" },
+    passenger_id: { type: "string", format: "uuid" },
+    trip_id: { type: "string", format: "uuid" },
+    boarding_stop_id: { type: "string", format: "uuid", nullable: true },
+    destination_stop_id: { type: "string", format: "uuid", nullable: true },
+    alert_radius_meters: { type: "integer", minimum: 50, maximum: 5000 },
+    status: { type: "string", enum: ["active", "exited"] },
+  },
+};
+
+const notificationSchema = {
+  type: "object",
+  properties: {
+    id: { type: "string", format: "uuid" },
+    user_id: { type: "string", format: "uuid" },
+    trip_id: { type: "string", format: "uuid" },
+    event_id: { type: "string", format: "uuid", nullable: true },
+    notification_type: {
+      type: "string",
+      enum: ["terminal_departure", "delay", "detour", "cancellation", "route_restored"],
+    },
+    title: { type: "string" },
+    message: { type: "string" },
+    status: { type: "string", enum: ["Pending", "Sent", "Read", "Failed"] },
+    data: { type: "object", additionalProperties: true },
+    timestamp: { type: "string", format: "date-time" },
+    sent_at: { type: "string", format: "date-time", nullable: true },
+  },
+};
+
+const delayTripRequestSchema = {
+  type: "object",
+  required: ["reason"],
+  additionalProperties: false,
+  properties: {
+    reason: { type: "string", minLength: 1, maxLength: 500 },
+    estimated_delay_minutes: { type: "integer", minimum: 1, maximum: 1440 },
+  },
+};
+
+const cancelTripRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    reason: { type: "string", minLength: 1, maxLength: 500 },
+  },
+};
+
+const detourRequestSchema = {
+  type: "object",
+  required: ["reason"],
+  additionalProperties: false,
+  properties: {
+    reason: { type: "string", minLength: 1, maxLength: 500 },
+    geometry_geojson: { $ref: "#/components/schemas/RouteGeometry" },
+    affected_stop_ids: {
+      type: "array",
+      maxItems: 50,
+      items: { type: "string", format: "uuid" },
+    },
+    expected_end_at: { type: "string", format: "date-time" },
+  },
+};
+
+const detourSchema = {
+  type: "object",
+  properties: {
+    id: { type: "string", format: "uuid" },
+    trip_id: { type: "string", format: "uuid" },
+    reported_by: { type: "string", format: "uuid", nullable: true },
+    resolved_by: { type: "string", format: "uuid", nullable: true },
+    reason: { type: "string" },
+    details: { type: "object", additionalProperties: true },
+    status: { type: "string", enum: ["active", "resolved"] },
+    started_at: { type: "string", format: "date-time" },
+    resolved_at: { type: "string", format: "date-time", nullable: true },
+  },
+};
+
 const errorResponse = (description) => ({
   description,
   content: {
@@ -750,6 +1005,26 @@ const openapiDocument = {
       name: "Admin - Viajes",
       description: `CRUD de viajes (conceptualmente rol ${ROLES.ADMIN}).`,
     },
+    {
+      name: "Conductor - Operacion",
+      description: `Transiciones operativas y telemetria para rol ${ROLES.DRIVER}.`,
+    },
+    {
+      name: "Pasajero - Notificaciones",
+      description: `Dispositivos, suscripciones y bandeja de alertas para rol ${ROLES.PASSENGER}.`,
+    },
+    {
+      name: "Admin - Paradas",
+      description: `CRUD de paradas de ruta (conceptualmente rol ${ROLES.ADMIN}).`,
+    },
+    {
+      name: "Admin - Incidentes",
+      description: `Moderacion de incidentes reportados (conceptualmente rol ${ROLES.ADMIN}).`,
+    },
+    {
+      name: "Admin - Telemetria",
+      description: `Telemetria historica y en vivo para el panel administrativo (rol ${ROLES.ADMIN}).`,
+    },
 
     {
       name: "Consumidor - Viajes",
@@ -791,6 +1066,14 @@ const openapiDocument = {
       ConsumerTrip: consumerTripSchema,
       CreateTripRequest: createTripRequestSchema,
       UpdateTripRequest: updateTripRequestSchema,
+      UpdateTripStatusRequest: updateTripStatusRequestSchema,
+      AdminStop: adminStopSchema,
+      CreateStopRequest: createStopRequestSchema,
+      UpdateStopRequest: updateStopRequestSchema,
+      AdminIncident: adminIncidentSchema,
+      ModerateIncidentRequest: moderateIncidentRequestSchema,
+      TelemetryPoint: telemetryPointSchema,
+      CurrentTelemetryPoint: currentTelemetryPointSchema,
       Driver: driverSchema,
       CreateDriverRequest: createDriverRequestSchema,
       UpdateDriverRequest: updateDriverRequestSchema,
@@ -807,6 +1090,15 @@ const openapiDocument = {
       PassengerIncident: passengerIncidentSchema,
       CreatePassengerIncidentRequest: createPassengerIncidentRequestSchema,
       CreatePassengerIncidentResponse: createPassengerIncidentResponseSchema,
+      PushDevice: pushDeviceSchema,
+      UpsertPushDeviceRequest: upsertPushDeviceRequestSchema,
+      NotificationPreferences: notificationPreferencesSchema,
+      TripSubscription: tripSubscriptionSchema,
+      Notification: notificationSchema,
+      DelayTripRequest: delayTripRequestSchema,
+      CancelTripRequest: cancelTripRequestSchema,
+      DetourRequest: detourRequestSchema,
+      Detour: detourSchema,
       LatLngRequest: latLngRequestSchema,
       ComputeGoogleRouteRequest: computeGoogleRouteRequestSchema,
       ComputeGoogleRouteResponse: computeGoogleRouteResponseSchema,
@@ -1845,6 +2137,399 @@ const openapiDocument = {
               },
             },
           },
+          401: unauthorizedResponse,
+        },
+      },
+    },
+    "/api/driver/trips": {
+      get: {
+        tags: ["Conductor - Operacion"],
+        summary: "Lista los viajes asignados al conductor",
+        security: bearerSecurity,
+        responses: {
+          200: {
+            description: "Viajes asignados pendientes o activos.",
+            content: {
+              "application/json": {
+                schema: { type: "array", items: { $ref: "#/components/schemas/AdminTrip" } },
+              },
+            },
+          },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+        },
+      },
+    },
+    "/api/driver/trips/active": {
+      get: {
+        tags: ["Conductor - Operacion"],
+        summary: "Obtiene el viaje activo del conductor",
+        security: bearerSecurity,
+        responses: {
+          200: {
+            description: "Viaje activo o null.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/AdminTrip" } },
+            },
+          },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+        },
+      },
+    },
+    "/api/driver/trips/{id}/start": {
+      post: {
+        tags: ["Conductor - Operacion"],
+        summary: "Inicia el viaje y genera la alerta de salida de terminal",
+        security: bearerSecurity,
+        parameters: [idPathParam],
+        responses: {
+          200: {
+            description: "Viaje iniciado.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/AdminTrip" } },
+            },
+          },
+          400: errorResponse("Id invalido."),
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+          404: errorResponse("El viaje no existe."),
+          409: errorResponse("El estado actual no permite iniciar el viaje."),
+        },
+      },
+    },
+    "/api/driver/trips/{id}/complete": {
+      post: {
+        tags: ["Conductor - Operacion"],
+        summary: "Completa un viaje activo",
+        security: bearerSecurity,
+        parameters: [idPathParam],
+        responses: {
+          200: {
+            description: "Viaje completado.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/AdminTrip" } },
+            },
+          },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+          404: errorResponse("El viaje no existe."),
+          409: errorResponse("El viaje no esta activo."),
+        },
+      },
+    },
+    "/api/driver/trips/{id}/cancel": {
+      post: {
+        tags: ["Conductor - Operacion"],
+        summary: "Cancela un viaje y genera una alerta",
+        security: bearerSecurity,
+        parameters: [idPathParam],
+        requestBody: {
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/CancelTripRequest" } },
+          },
+        },
+        responses: {
+          200: {
+            description: "Viaje cancelado.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/AdminTrip" } },
+            },
+          },
+          400: errorResponse("Body invalido."),
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+          404: errorResponse("El viaje no existe."),
+          409: errorResponse("El viaje ya finalizo."),
+        },
+      },
+    },
+    "/api/driver/trips/{id}/delay": {
+      post: {
+        tags: ["Conductor - Operacion"],
+        summary: "Reporta un retraso inesperado y genera una alerta",
+        security: bearerSecurity,
+        parameters: [idPathParam],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/DelayTripRequest" } },
+          },
+        },
+        responses: {
+          200: {
+            description: "Retraso registrado.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/AdminTrip" } },
+            },
+          },
+          400: errorResponse("Body invalido."),
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+          404: errorResponse("El viaje no existe."),
+          409: errorResponse("El estado actual no admite un retraso."),
+        },
+      },
+    },
+    "/api/driver/trips/{id}/resume": {
+      post: {
+        tags: ["Conductor - Operacion"],
+        summary: "Reanuda un viaje retrasado o detenido",
+        security: bearerSecurity,
+        parameters: [idPathParam],
+        responses: {
+          200: {
+            description: "Viaje reanudado.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/AdminTrip" } },
+            },
+          },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+          404: errorResponse("El viaje no existe."),
+          409: errorResponse("El estado actual no admite reanudacion."),
+        },
+      },
+    },
+    "/api/driver/trips/{id}/detour": {
+      post: {
+        tags: ["Conductor - Operacion"],
+        summary: "Reporta un desvio temporal y genera una alerta",
+        security: bearerSecurity,
+        parameters: [idPathParam],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/DetourRequest" } },
+          },
+        },
+        responses: {
+          201: {
+            description: "Desvio registrado.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/Detour" } },
+            },
+          },
+          400: errorResponse("Body invalido."),
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+          404: errorResponse("El viaje no existe."),
+          409: errorResponse("Ya existe un desvio activo o el viaje no esta activo."),
+        },
+      },
+    },
+    "/api/driver/trips/{id}/detour/resolve": {
+      post: {
+        tags: ["Conductor - Operacion"],
+        summary: "Resuelve el desvio activo y notifica la restauracion",
+        security: bearerSecurity,
+        parameters: [idPathParam],
+        responses: {
+          200: {
+            description: "Desvio resuelto.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/Detour" } },
+            },
+          },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+          404: errorResponse("No existe un desvio activo para el viaje."),
+        },
+      },
+    },
+    "/api/driver/trips/{id}/location": {
+      post: {
+        tags: ["Conductor - Operacion"],
+        summary: "Registra telemetria de un viaje activo",
+        security: bearerSecurity,
+        parameters: [idPathParam],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["latitude", "longitude"],
+                additionalProperties: false,
+                properties: {
+                  latitude: { type: "number", minimum: -90, maximum: 90 },
+                  longitude: { type: "number", minimum: -180, maximum: 180 },
+                  speed: { type: "number", minimum: 0 },
+                  heading: { type: "number", minimum: 0, maximum: 360 },
+                  recorded_at: { type: "string", format: "date-time" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          201: { description: "Ubicacion registrada." },
+          400: errorResponse("Body invalido."),
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+          404: errorResponse("El viaje no existe."),
+          409: errorResponse("El viaje no esta activo."),
+        },
+      },
+    },
+    "/api/passenger/push-devices/{installationId}": {
+      put: {
+        tags: ["Pasajero - Notificaciones"],
+        summary: "Registra o actualiza un destino FCM",
+        security: bearerSecurity,
+        parameters: [{
+          name: "installationId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/UpsertPushDeviceRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "Dispositivo registrado sin exponer el destino FCM.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/PushDevice" } },
+            },
+          },
+          400: errorResponse("Destino o plataforma invalida."),
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+        },
+      },
+      delete: {
+        tags: ["Pasajero - Notificaciones"],
+        summary: "Desactiva un destino FCM",
+        security: bearerSecurity,
+        parameters: [{
+          name: "installationId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        }],
+        responses: {
+          204: { description: "Dispositivo desactivado." },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+          404: errorResponse("El dispositivo no existe."),
+        },
+      },
+    },
+    "/api/passenger/notification-preferences": {
+      patch: {
+        tags: ["Pasajero - Notificaciones"],
+        summary: "Actualiza preferencias de alertas push",
+        security: bearerSecurity,
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/NotificationPreferences" } },
+          },
+        },
+        responses: {
+          200: { description: "Preferencias actualizadas." },
+          400: errorResponse("Debe enviar al menos una preferencia valida."),
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+          404: errorResponse("El perfil de pasajero no existe."),
+        },
+      },
+    },
+    "/api/passenger/trips/{id}/subscription": {
+      post: {
+        tags: ["Pasajero - Notificaciones"],
+        summary: "Sigue un viaje para recibir sus alertas",
+        security: bearerSecurity,
+        parameters: [idPathParam],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  boarding_stop_id: { type: "string", format: "uuid" },
+                  destination_stop_id: { type: "string", format: "uuid" },
+                  alert_radius_meters: { type: "integer", minimum: 50, maximum: 5000 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "Suscripcion activa.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/TripSubscription" } },
+            },
+          },
+          400: errorResponse("Viaje finalizado o paradas incompatibles con la ruta."),
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+          404: errorResponse("El viaje no existe."),
+        },
+      },
+      delete: {
+        tags: ["Pasajero - Notificaciones"],
+        summary: "Deja de seguir un viaje",
+        security: bearerSecurity,
+        parameters: [idPathParam],
+        responses: {
+          204: { description: "Suscripcion finalizada." },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+          404: errorResponse("La suscripcion no existe."),
+        },
+      },
+    },
+    "/api/passenger/notifications": {
+      get: {
+        tags: ["Pasajero - Notificaciones"],
+        summary: "Lista la bandeja de notificaciones del pasajero",
+        security: bearerSecurity,
+        parameters: [
+          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 25 } },
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1, default: 1 } },
+          { name: "unread_only", in: "query", schema: { type: "boolean", default: false } },
+        ],
+        responses: {
+          200: {
+            description: "Notificaciones del usuario autenticado.",
+            content: {
+              "application/json": {
+                schema: { type: "array", items: { $ref: "#/components/schemas/Notification" } },
+              },
+            },
+          },
+          400: errorResponse("Paginacion invalida."),
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+        },
+      },
+    },
+    "/api/passenger/notifications/{id}/read": {
+      patch: {
+        tags: ["Pasajero - Notificaciones"],
+        summary: "Marca una notificacion propia como leida",
+        security: bearerSecurity,
+        parameters: [idPathParam],
+        responses: {
+          200: {
+            description: "Notificacion marcada como leida.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/Notification" } },
+            },
+          },
+          401: unauthorizedResponse,
+          403: forbiddenResponse,
+          404: errorResponse("La notificacion no existe."),
         },
       },
     },
@@ -2024,6 +2709,288 @@ const openapiDocument = {
           },
         },
       },
+      "/api/admin/trips/{id}/status": {
+        patch: {
+          tags: ["Admin - Viajes"],
+          summary: "Transiciona el estado de un viaje",
+          description:
+            "Endpoint aditivo (fuera del CSV oficial). Cambia status y, si es terminal " +
+            "(Completed/Cancelled), registra ended_at y detiene el tracking en tiempo real.",
+          security: bearerSecurity,
+          parameters: [idPathParam],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/UpdateTripStatusRequest" },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Viaje con el nuevo estado.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/AdminTrip" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Id no es UUID o status invalido."),
+            404: errorResponse("El viaje no existe."),
+          },
+        },
+      },
+      "/api/admin/stops": {
+        get: {
+          tags: ["Admin - Paradas"],
+          summary: "Lista de paradas de una ruta",
+          description:
+            "Endpoint aditivo (fuera del CSV oficial). Filtra por route_id opcional.",
+          security: bearerSecurity,
+          parameters: [
+            {
+              name: "route_id",
+              in: "query",
+              required: false,
+              description: "Identificador UUID de la ruta.",
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Arreglo de paradas.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/AdminStop" },
+                  },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("route_id no es UUID."),
+          },
+        },
+        post: {
+          tags: ["Admin - Paradas"],
+          summary: "Crea una parada",
+          description: "Endpoint aditivo (fuera del CSV oficial).",
+          security: bearerSecurity,
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CreateStopRequest" },
+              },
+            },
+          },
+          responses: {
+            201: {
+              description: "Parada creada.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/CreatedResponse" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Body invalido (validacion zod / clave desconocida)."),
+          },
+        },
+      },
+      "/api/admin/stops/{id}": {
+        put: {
+          tags: ["Admin - Paradas"],
+          summary: "Edita una parada",
+          description: "Endpoint aditivo (fuera del CSV oficial). Requiere al menos un campo.",
+          security: bearerSecurity,
+          parameters: [idPathParam],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/UpdateStopRequest" },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Parada actualizada.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/AdminStop" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Id no es UUID o body invalido."),
+            404: errorResponse("La parada no existe."),
+          },
+        },
+        delete: {
+          tags: ["Admin - Paradas"],
+          summary: "Elimina una parada",
+          description: "Endpoint aditivo (fuera del CSV oficial).",
+          security: bearerSecurity,
+          parameters: [idPathParam],
+          responses: {
+            200: {
+              description: "Parada eliminada.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/DeletedResponse" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Id no es UUID."),
+            404: errorResponse("La parada no existe."),
+          },
+        },
+      },
+      "/api/admin/incidents": {
+        get: {
+          tags: ["Admin - Incidentes"],
+          summary: "Lista incidentes reportados (con moderacion)",
+          description:
+            "Endpoint aditivo (fuera del CSV oficial). Filtra por status " +
+            "con mayuscula inicial (Pending, Validated, Archived, Dismissed).",
+          security: bearerSecurity,
+          parameters: [
+            {
+              name: "status",
+              in: "query",
+              required: false,
+              schema: { type: "string", enum: ADMIN_REPORT_MODERATION_STATUS_VALUES },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Arreglo de incidentes en forma administrativa.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/AdminIncident" },
+                  },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("status invalido."),
+          },
+        },
+      },
+      "/api/admin/incidents/{id}": {
+        put: {
+          tags: ["Admin - Incidentes"],
+          summary: "Modera un incidente (estado de moderacion)",
+          description:
+            "Endpoint aditivo (fuera del CSV oficial). Valida, archiva o descarta un incidente.",
+          security: bearerSecurity,
+          parameters: [idPathParam],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ModerateIncidentRequest" },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Incidente moderado.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/AdminIncident" },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("Id no es UUID o status invalido."),
+            404: errorResponse("El incidente no existe."),
+          },
+        },
+      },
+      "/api/admin/telemetry/history": {
+        get: {
+          tags: ["Admin - Telemetria"],
+          summary: "Historial de telemetria de un viaje",
+          description:
+            "Endpoint aditivo (fuera del CSV oficial). Opcionalmente acotado por rango de tiempo.",
+          security: bearerSecurity,
+          parameters: [
+            {
+              name: "trip_id",
+              in: "query",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "start_time",
+              in: "query",
+              required: false,
+              schema: { type: "string", format: "date-time" },
+            },
+            {
+              name: "end_time",
+              in: "query",
+              required: false,
+              schema: { type: "string", format: "date-time" },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Arreglo de puntos de telemetria ordenados ascendentemente.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/TelemetryPoint" },
+                  },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+            400: errorResponse("trip_id o rango de tiempo invalido."),
+          },
+        },
+      },
+      "/api/admin/telemetry/current": {
+        get: {
+          tags: ["Admin - Telemetria"],
+          summary: "Ubicacion en vivo de los viajes activos",
+          description:
+            "Endpoint aditivo (fuera del CSV oficial). Devuelve la ultima telemetria " +
+            "de cada viaje In Progress para dibujar los buses en el mapa.",
+          security: bearerSecurity,
+          responses: {
+            200: {
+              description: "Arreglo de puntos actuales por viaje activo.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/CurrentTelemetryPoint" },
+                  },
+                },
+              },
+            },
+            401: unauthorizedResponse,
+            403: forbiddenResponse,
+          },
+        },
+      },
       "/api/passenger/trips": {
         get: {
           tags: ["Consumidor - Viajes"],
@@ -2121,4 +3088,3 @@ const openapiDocument = {
   };
 
 module.exports = { openapiDocument };
-
