@@ -21,6 +21,8 @@ const INCLUDE_DIRS = [
   "utils",
   "views",
   "scripts",
+  "src",
+  "supabase/functions",
 ];
 
 const INCLUDE_ROOT_FILES = [

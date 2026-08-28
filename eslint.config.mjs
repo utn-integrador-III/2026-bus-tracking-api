@@ -17,6 +17,7 @@ const SOURCE_GLOBS = [
   "utils/**/*.{js,mjs,cjs}",
   "views/**/*.{js,mjs,cjs}",
   "scripts/**/*.{js,mjs,cjs}",
+  "src/**/*.{js,mjs,cjs}",
   "tools/**/*.{js,mjs,cjs}",
   "index.js",
   "app.js",
@@ -64,6 +65,7 @@ export default [
       "**/__tests__/**/*.{js,mjs,cjs}",
       "**/*.test.{js,mjs,cjs}",
       "**/*.spec.{js,mjs,cjs}",
+      "testUtils/**/*.{js,mjs,cjs}",
     ],
     languageOptions: {
       globals: { ...globals.jest },

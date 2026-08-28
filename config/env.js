@@ -75,6 +75,7 @@ function splitOrigins(value) {
 
 const env = Object.freeze({
   appEnv: readString("APP_ENV", "development"),
+  appDebug: readString("APP_DEBUG", "false") === "true",
   appHost: readString("APP_HOST", "0.0.0.0"),
   appPort: readInt("APP_PORT", 8000),
   corsOrigins: splitOrigins(readString("CORS_ORIGINS", "")),
@@ -91,6 +92,13 @@ const env = Object.freeze({
 
   telemetryUpdateIntervalSeconds: readInt("TELEMETRY_UPDATE_INTERVAL_SECONDS", 2),
   enableSupabaseRealtime: readString("ENABLE_SUPABASE_REALTIME", "true") === "true",
+
+  stopProximityRadiusMeters: readInt("STOP_PROXIMITY_RADIUS_METERS", 500),
+  enablePushNotifications: readString("ENABLE_PUSH_NOTIFICATIONS", "false") === "true",
+  supabaseFunctionsUrl: readString("SUPABASE_FUNCTIONS_URL", ""),
+  enableProximityWorker: readString("ENABLE_PROXIMITY_WORKER", "false") === "true",
+  proximityWorkerIntervalSeconds: readInt("PROXIMITY_WORKER_INTERVAL_SECONDS", 5),
+  enableGoogleRoutes: readString("ENABLE_GOOGLE_ROUTES", "true") === "true",
 });
 
 function assertSupabaseConfig() {

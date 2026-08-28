@@ -19,10 +19,12 @@ const SOURCE_DIRS = [
   "utils",
   "views",
   "scripts",
+  "src",
+  "supabase/functions",
 ];
 
 const ROOT_FILES = ["index.js", "app.js", "server.js"];
-const EXTS = new Set([".js", ".mjs", ".cjs"]);
+const EXTS = new Set([".js", ".mjs", ".cjs", ".ts"]);
 const EXCLUDE_DIRS = new Set(["node_modules", ".git"]);
 
 function walk(dir, acc) {
@@ -51,11 +53,17 @@ function collectSourceFiles() {
 
 function extractUsedKeys(files) {
   const keys = new Set();
-  const re = /process\.env\.([A-Z][A-Z0-9_]+)/g;
+  const patterns = [
+    /process\.env\.([A-Z][A-Z0-9_]+)/g,
+    /Deno\.env\.get\(["']([A-Z][A-Z0-9_]*)["']\)/g,
+    /(?:requiredEnv|integerEnv)\(["']([A-Z][A-Z0-9_]*)["']/g,
+  ];
   for (const f of files) {
     const src = readFileSync(f, "utf8");
-    let m;
-    while ((m = re.exec(src)) !== null) keys.add(m[1]);
+    for (const pattern of patterns) {
+      let m;
+      while ((m = pattern.exec(src)) !== null) keys.add(m[1]);
+    }
   }
   return keys;
 }
@@ -85,7 +93,7 @@ const unusedInCode = [...example].filter((k) => !used.has(k));
 let exitCode = 0;
 
 if (missingInExample.length > 0) {
-  console.error("Vars usadas en el codigo (process.env.X) pero AUSENTES en .env.example:");
+  console.error("Vars usadas en el codigo pero AUSENTES en .env.example:");
   for (const k of missingInExample) console.error("  -", k);
   exitCode = 1;
 }

@@ -164,17 +164,6 @@ describe("registerPassengerSchema", () => {
     expect(result.data.name).toBe("Carlos Marin");
     expect(result.data.email).toBe("carlos@example.com");
   });
-  test("normalizes email to lowercase for case-insensitive uniqueness", () => {
-    const result = registerPassengerSchema.safeParse({
-      name: "Carlos Marin",
-      email: "FOO@X.COM",
-      password: "Password123",
-      phone: "88888888",
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.data.email).toBe("foo@x.com");
-  });
 
   test("rejects a senior request with a non-existent calendar date", () => {
     const result = registerPassengerSchema.safeParse({
@@ -200,6 +189,18 @@ describe("registerPassengerSchema", () => {
     });
 
     expect(result.success).toBe(true);
+  });
+
+  test("normalizes email to lowercase for case-insensitive uniqueness", () => {
+    const result = registerPassengerSchema.safeParse({
+      name: "Carlos Marin",
+      email: "FOO@X.COM",
+      password: "Password123",
+      phone: "88888888",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data.email).toBe("foo@x.com");
   });
 });
 
@@ -234,7 +235,6 @@ describe("loginSchema", () => {
 describe("seniorDocumentUploadUrlSchema", () => {
   test("accepts a valid senior document upload payload", () => {
     const result = seniorDocumentUploadUrlSchema.safeParse({
-      email: "senior.passenger@example.com",
       file_name: "cedula-frontal.jpg",
       content_type: "image/jpeg",
     });
@@ -244,7 +244,6 @@ describe("seniorDocumentUploadUrlSchema", () => {
 
   test("rejects unsupported document content types", () => {
     const result = seniorDocumentUploadUrlSchema.safeParse({
-      email: "senior.passenger@example.com",
       file_name: "cedula.pdf",
       content_type: "application/pdf",
     });
@@ -252,9 +251,18 @@ describe("seniorDocumentUploadUrlSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  test("rejects unknown keys", () => {
+  test("rejects a client supplied email", () => {
     const result = seniorDocumentUploadUrlSchema.safeParse({
       email: "senior.passenger@example.com",
+      file_name: "cedula.jpg",
+      content_type: "image/jpeg",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects unknown keys", () => {
+    const result = seniorDocumentUploadUrlSchema.safeParse({
       file_name: "cedula.jpg",
       content_type: "image/jpeg",
       role: "Admin",

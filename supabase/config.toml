@@ -1,0 +1,7 @@
+project_id = "bus-tracking-project"
+
+[functions.notification-worker]
+verify_jwt = false
+
+[edge_runtime]
+policy = "per_worker"
