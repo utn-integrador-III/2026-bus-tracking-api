@@ -68,6 +68,23 @@ async function findRequestById(id) {
   return data || null;
 }
 
+async function createSignedDocumentUrl(bucket, path, expiresIn = 300) {
+  const { data, error } = await getServiceClient()
+    .storage
+    .from(bucket)
+    .createSignedUrl(path, expiresIn);
+
+  if (error?.statusCode === "404" || error?.message === "Object not found") {
+    return null;
+  }
+
+  if (error || !data?.signedUrl) {
+    throw databaseError(error);
+  }
+
+  return data.signedUrl;
+}
+
 async function updateRequest(id, payload) {
   const { data, error } = await getServiceClient()
     .from(TABLE)
@@ -105,6 +122,7 @@ module.exports = {
   createPendingRequest,
   listRequests,
   findRequestById,
+  createSignedDocumentUrl,
   updateRequest,
   reviewRequest,
 };
