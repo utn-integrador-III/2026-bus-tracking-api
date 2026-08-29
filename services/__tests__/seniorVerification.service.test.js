@@ -5,6 +5,7 @@ jest.mock("../../repositories/seniorVerificationRepository", () => ({
   findRequestById: jest.fn(),
   updateRequest: jest.fn(),
   reviewRequest: jest.fn(),
+  createSignedDocumentUrl: jest.fn(),
 }));
 
 jest.mock("../../repositories/passengerRepository", () => ({
@@ -62,6 +63,9 @@ const passenger = {
 describe("seniorVerification.service", () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    seniorVerificationRepository.createSignedDocumentUrl.mockResolvedValue(
+      "https://storage.example.com/signed-document",
+    );
   });
 
   test("lists senior verification requests", async () => {
@@ -81,6 +85,9 @@ describe("seniorVerification.service", () => {
     expect(result[0].id).toBe(requestId);
     expect(result[0].user.email).toBe("senior.passenger@example.com");
     expect(result[0].passenger.user_id).toBe(passengerId);
+    expect(result[0].document_image_url).toBe(
+      "https://storage.example.com/signed-document",
+    );
   });
 
   test("gets a senior verification request by id", async () => {
@@ -93,6 +100,17 @@ describe("seniorVerification.service", () => {
     expect(seniorVerificationRepository.findRequestById).toHaveBeenCalledWith(requestId);
     expect(result.id).toBe(requestId);
     expect(result.status).toBe("pending");
+  });
+
+  test("keeps requests visible when a historical document is missing", async () => {
+    seniorVerificationRepository.listRequests.mockResolvedValue([pendingRequest]);
+    seniorVerificationRepository.createSignedDocumentUrl.mockResolvedValue(null);
+    userRepository.findUserById.mockResolvedValue(user);
+    passengerRepository.findPassengerById.mockResolvedValue(passenger);
+
+    const result = await seniorVerificationService.listRequests({ status: "pending" });
+
+    expect(result[0].document_image_url).toBeNull();
   });
 
   test("throws not found when request does not exist", async () => {

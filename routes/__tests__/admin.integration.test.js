@@ -150,7 +150,7 @@ describe("admin routes", () => {
     });
   });
 
-  describe("GET /api/admin/stops", () => {
+describe("GET /api/admin/stops", () => {
     test("returns 200 with stops, optionally filtered by route", async () => {
       const response = await request(app)
         .get(`/api/admin/stops?route_id=${ROUTE_ID}`)
@@ -438,5 +438,36 @@ describe("admin routes", () => {
 
       expect(response.status).toBe(400);
     });
+  });
+});
+describe("GET /api/passenger/stops", () => {
+  test("returns only the stops for the requested route", async () => {
+    verifyAccessToken.mockResolvedValue(passengerUser);
+
+    const response = await request(app)
+      .get(`/api/passenger/stops?route_id=${ROUTE_ID}`)
+      .set("Authorization", `Bearer ${AUTH_TOKEN}`);
+
+    expect(response.status).toBe(200);
+    expect(SupabaseAdminRepository.prototype.listStops).toHaveBeenCalledWith(
+      ROUTE_ID,
+    );
+    expect(response.body).toEqual([
+      expect.objectContaining({ route_id: ROUTE_ID, name: "Parada Central" }),
+    ]);
+  });
+
+  test("requires a valid route and passenger role", async () => {
+    verifyAccessToken.mockResolvedValue(passengerUser);
+    const invalid = await request(app)
+      .get("/api/passenger/stops")
+      .set("Authorization", `Bearer ${AUTH_TOKEN}`);
+    expect(invalid.status).toBe(400);
+
+    verifyAccessToken.mockResolvedValue(adminUser);
+    const forbidden = await request(app)
+      .get(`/api/passenger/stops?route_id=${ROUTE_ID}`)
+      .set("Authorization", `Bearer ${AUTH_TOKEN}`);
+    expect(forbidden.status).toBe(403);
   });
 });
