@@ -34,10 +34,17 @@ const deactivateDriver = asyncHandler(async function deactivateDriver(req, res) 
   res.status(HTTP_STATUS.OK).json(row);
 });
 
+const reactivateDriver = asyncHandler(async function reactivateDriver(req, res) {
+  const row = await driverService.reactivateDriver(req.valid.params.id);
+
+  res.status(HTTP_STATUS.OK).json(row);
+});
+
 module.exports = {
   listDrivers,
   getDriver,
   createDriver,
   updateDriver,
   deactivateDriver,
+  reactivateDriver,
 };
