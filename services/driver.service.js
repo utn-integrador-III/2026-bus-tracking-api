@@ -195,10 +195,25 @@ async function deactivateDriver(id) {
   return presentDriver(updatedUser, roleRecord);
 }
 
+async function reactivateDriver(id) {
+  await getDriverById(id);
+
+  const updatedUser = await userRepository.setUserActive(id, true);
+
+  if (!updatedUser) {
+    throw notFound();
+  }
+
+  const roleRecord = await userRoleRepository.findRoleByUserIdAndRole(id, DRIVER_ROLE);
+
+  return presentDriver(updatedUser, roleRecord);
+}
+
 module.exports = {
   listDrivers,
   getDriverById,
   createDriver,
   updateDriver,
   deactivateDriver,
+  reactivateDriver,
 };

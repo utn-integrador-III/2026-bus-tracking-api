@@ -345,4 +345,26 @@ describe("driver.service", () => {
       expect(result.is_active).toBe(false);
     });
   });
+
+  describe("reactivateDriver", () => {
+    test("reactivates a driver successfully", async () => {
+      const reactivatedUser = {
+        ...userRow,
+        is_active: true,
+        deactivated_at: null,
+      };
+
+      userRepository.findUserById.mockResolvedValue({
+        ...userRow,
+        is_active: false,
+      });
+      userRoleRepository.findRoleByUserIdAndRole.mockResolvedValue(driverRoleRow);
+      userRepository.setUserActive.mockResolvedValue(reactivatedUser);
+
+      const result = await driverService.reactivateDriver(validUserId);
+
+      expect(userRepository.setUserActive).toHaveBeenCalledWith(validUserId, true);
+      expect(result.is_active).toBe(true);
+    });
+  });
 });
