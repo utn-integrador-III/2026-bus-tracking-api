@@ -1684,6 +1684,28 @@ const openapiDocument = {
         },
       },
     },
+    "/api/admin/drivers/{id}/reactivate": {
+      post: {
+        tags: ["Admin - Drivers"],
+        summary: "Reactivate driver",
+        description:
+          "Reactivates a deactivated driver by setting users.isActive to true.",
+        parameters: [idPathParam],
+        responses: {
+          200: {
+            description: "Driver reactivated successfully.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Driver" },
+              },
+            },
+          },
+          400: errorResponse("Id is not a valid UUID."),
+          404: errorResponse("The requested driver does not exist."),
+          500: errorResponse("Internal server error."),
+        },
+      },
+    },
     "/api/admin/senior-requests": {
     get: {
       tags: ["Admin - Senior Requests"],

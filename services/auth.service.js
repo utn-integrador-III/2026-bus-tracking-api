@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("crypto");
 const { createAuthModule } = require("../src/modules/auth");
 const { getServiceClient } = require("../database/supabaseClient");
 const userRepository = require("../repositories/userRepository");
@@ -12,7 +13,6 @@ const { ERROR_CODES } = require("../constants/errorCodes");
 
 const DRIVER_ROLE = "Driver";
 const SENIOR_DOCUMENTS_BUCKET = "cedulas";
-const SENIOR_STATUS_PENDING = "pending";
 const SENIOR_DOCUMENT_CONTENT_TYPES = Object.freeze({
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -36,6 +36,28 @@ function buildSeniorDocumentPath(payload) {
   const extension = SENIOR_DOCUMENT_CONTENT_TYPES[payload.content_type];
 
   return `passengers/${owner}/${Date.now()}-${baseName}.${extension}`;
+}
+
+function getPreRegistrationOwner(email) {
+  return crypto
+    .createHash("sha256")
+    .update(String(email || "").trim().toLowerCase())
+    .digest("hex");
+}
+
+function buildSeniorPreRegistrationDocumentPath(payload) {
+  const owner = getPreRegistrationOwner(payload.email);
+  const rawFileName = normalizeStorageSegment(payload.file_name, "document");
+  const baseName = rawFileName.replace(/\.[a-z0-9]+$/i, "") || "document";
+  const extension = SENIOR_DOCUMENT_CONTENT_TYPES[payload.content_type];
+
+  return `registrations/${owner}/${crypto.randomUUID()}-${baseName}.${extension}`;
+}
+
+function isOwnedPreRegistrationDocument(email, path) {
+  return String(path || "").startsWith(
+    `registrations/${getPreRegistrationOwner(email)}/`,
+  );
 }
 
 const { authService } = createAuthModule();
@@ -66,7 +88,43 @@ authService.createSeniorDocumentUploadUrl = async function createSeniorDocumentU
   };
 };
 
+authService.createSeniorPreRegistrationUploadUrl =
+  async function createSeniorPreRegistrationUploadUrl(payload) {
+    const path = buildSeniorPreRegistrationDocumentPath(payload);
+    const { data, error } = await getServiceClient()
+      .storage
+      .from(SENIOR_DOCUMENTS_BUCKET)
+      .createSignedUploadUrl(path);
+
+    if (error || !data || !data.signedUrl || !data.path) {
+      throw new AppError(
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        ERROR_CODES.AUTH_SENIOR_DOCUMENT_UPLOAD_FAILED,
+        "Senior document upload URL could not be created.",
+        error ? error.message : undefined,
+      );
+    }
+
+    return {
+      bucket: SENIOR_DOCUMENTS_BUCKET,
+      path: data.path,
+      signed_url: data.signedUrl,
+      token: data.token || null,
+    };
+  };
+
 authService.registerPassenger = async function registerPassenger(payload) {
+  if (
+    payload.is_senior_request === true &&
+    !isOwnedPreRegistrationDocument(payload.email, payload.document_image_path)
+  ) {
+    throw new AppError(
+      HTTP_STATUS.BAD_REQUEST,
+      ERROR_CODES.AUTH_VALIDATION_FAILED,
+      "Senior document does not belong to this registration.",
+    );
+  }
+
   const result = await baseRegisterPassenger(payload);
 
   const isSeniorRequest = payload.is_senior_request === true;
@@ -96,7 +154,7 @@ authService.registerPassenger = async function registerPassenger(payload) {
   }
 
   if (typeof passengerRepository.updatePassengerProfile === "function") {
-    const profileUpdate = { senior_status: SENIOR_STATUS_PENDING };
+    const profileUpdate = {};
 
     if (payload.birth_date) {
       profileUpdate.birth_date = payload.birth_date;
@@ -108,7 +166,10 @@ authService.registerPassenger = async function registerPassenger(payload) {
     );
 
     if (updatedPassenger) {
-      passenger = updatedPassenger;
+      passenger = {
+        ...updatedPassenger,
+        senior_status: "pending",
+      };
     }
   }
 

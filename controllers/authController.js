@@ -24,4 +24,14 @@ authController.createSeniorDocumentUploadUrl = asyncHandler(
   },
 );
 
+authController.createSeniorPreRegistrationUploadUrl = asyncHandler(
+  async function createSeniorPreRegistrationUploadUrl(req, res) {
+    const result = await authService.createSeniorPreRegistrationUploadUrl(
+      req.valid.body,
+    );
+
+    res.status(HTTP_STATUS.OK).json(result);
+  },
+);
+
 module.exports = authController;

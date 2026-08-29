@@ -17,6 +17,12 @@ const listStopsQuerySchema = z
   })
   .strict();
 
+const passengerStopsQuerySchema = z
+  .object({
+    route_id: z.string().uuid(),
+  })
+  .strict();
+
 const stopSchema = z
   .object({
     route_id: z.string().uuid(),
@@ -71,6 +77,7 @@ const listUsersQuerySchema = z
 module.exports = {
   idParamSchema,
   listStopsQuerySchema,
+  passengerStopsQuerySchema,
   stopSchema,
   updateStopSchema,
   listIncidentsQuerySchema,
