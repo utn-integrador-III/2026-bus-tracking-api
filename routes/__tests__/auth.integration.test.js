@@ -8,6 +8,7 @@ jest.mock("../../services/auth.service", () => ({
   getSession: jest.fn(),
   loginDriver: jest.fn(),
   createSeniorDocumentUploadUrl: jest.fn(),
+  createSeniorPreRegistrationUploadUrl: jest.fn(),
 }));
 
 jest.mock("../../database/supabaseClient", () => ({
@@ -124,6 +125,44 @@ describe("auth routes", () => {
 
       expect(response.status).toBe(400);
       expect(authService.createSeniorDocumentUploadUrl).not.toHaveBeenCalled();
+    });
+  });
+  describe("POST /api/auth/senior-document/pre-register-upload-url", () => {
+    test("creates a registration-scoped upload URL without a bearer token", async () => {
+      authService.createSeniorPreRegistrationUploadUrl.mockResolvedValue({
+        bucket: "cedulas",
+        path: "registrations/owner/document.jpg",
+        signed_url: "https://storage.example.com/upload",
+        token: "upload-token",
+      });
+
+      const response = await request(app)
+        .post("/api/auth/senior-document/pre-register-upload-url")
+        .send({
+          email: "senior@example.com",
+          file_name: "cedula.jpg",
+          content_type: "image/jpeg",
+        });
+
+      expect(response.status).toBe(200);
+      expect(authService.createSeniorPreRegistrationUploadUrl).toHaveBeenCalledWith({
+        email: "senior@example.com",
+        file_name: "cedula.jpg",
+        content_type: "image/jpeg",
+      });
+    });
+
+    test("rejects an invalid email or content type", async () => {
+      const response = await request(app)
+        .post("/api/auth/senior-document/pre-register-upload-url")
+        .send({
+          email: "invalid",
+          file_name: "cedula.pdf",
+          content_type: "application/pdf",
+        });
+
+      expect(response.status).toBe(400);
+      expect(authService.createSeniorPreRegistrationUploadUrl).not.toHaveBeenCalled();
     });
   });
   describe("POST /api/auth/register", () => {

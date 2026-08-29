@@ -1,5 +1,7 @@
 "use strict";
 
+const crypto = require("crypto");
+
 jest.mock("../../database/supabaseClient", () => ({
   getServiceClient: jest.fn(),
   getAnonClient: jest.fn(),
@@ -44,6 +46,9 @@ const { ERROR_CODES } = require("../../constants/errorCodes");
 const { ROLES } = require("../../constants/roles");
 
 const validUserId = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+const seniorEmail = "senior.passenger@example.com";
+const seniorOwner = crypto.createHash("sha256").update(seniorEmail).digest("hex");
+const seniorDocumentPath = `registrations/${seniorOwner}/cedula.jpg`;
 
 describe("auth.service", () => {
   beforeEach(() => {
@@ -114,7 +119,51 @@ describe("auth.service", () => {
       });
     });
   });
+  describe("createSeniorPreRegistrationUploadUrl", () => {
+    test("creates an email-scoped signed URL", async () => {
+      jest.spyOn(crypto, "randomUUID").mockReturnValue("document-id");
+      const expectedPath = `registrations/${seniorOwner}/document-id-cedula.jpg`;
+      const createSignedUploadUrl = jest.fn().mockResolvedValue({
+        data: {
+          signedUrl: "https://storage.example.com/upload",
+          path: expectedPath,
+          token: "upload-token",
+        },
+        error: null,
+      });
+      getServiceClient.mockReturnValue({
+        storage: { from: jest.fn().mockReturnValue({ createSignedUploadUrl }) },
+      });
+
+      const result = await authService.createSeniorPreRegistrationUploadUrl({
+        email: seniorEmail,
+        file_name: "Cedula.JPG",
+        content_type: "image/jpeg",
+      });
+
+      expect(createSignedUploadUrl).toHaveBeenCalledWith(expectedPath);
+      expect(result.path).toBe(expectedPath);
+    });
+  });
   describe("registerPassenger", () => {
+    test("rejects a senior document issued for a different email", async () => {
+      await expect(
+        authService.registerPassenger({
+          name: "Senior Passenger",
+          email: "different@example.com",
+          password: "Password123",
+          is_senior_request: true,
+          birth_date: "1960-05-10",
+          document_image_path: seniorDocumentPath,
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: ERROR_CODES.AUTH_VALIDATION_FAILED,
+      });
+
+      expect(userRepository.findUserByEmail).not.toHaveBeenCalled();
+    });
+
     test("registers a passenger successfully", async () => {
       const createUserMock = jest.fn().mockResolvedValue({
         data: {
@@ -253,7 +302,7 @@ describe("auth.service", () => {
         id: "senior-request-id",
         passenger_id: validUserId,
         document_image_bucket: "cedulas",
-        document_image_path: "passengers/senior.passenger@example.com/cedula.jpg",
+        document_image_path: seniorDocumentPath,
         status: "pending",
         reviewed_by: null,
         reviewed_at: null,
@@ -269,7 +318,7 @@ describe("auth.service", () => {
         phone: "88882222",
         is_senior_request: true,
         birth_date: "1960-05-10",
-        document_image_path: "passengers/senior.passenger@example.com/cedula.jpg",
+        document_image_path: seniorDocumentPath,
       });
 
       expect(createUserMock).toHaveBeenCalledWith({
@@ -295,14 +344,13 @@ describe("auth.service", () => {
       });
 
       expect(passengerRepository.updatePassengerProfile).toHaveBeenCalledWith(validUserId, {
-        senior_status: "pending",
         birth_date: "1960-05-10",
       });
 
       expect(seniorVerificationRepository.createPendingRequest).toHaveBeenCalledWith({
         passenger_id: validUserId,
         document_image_bucket: "cedulas",
-        document_image_path: "passengers/senior.passenger@example.com/cedula.jpg",
+        document_image_path: seniorDocumentPath,
         status: "pending",
       });
 
@@ -1030,4 +1078,3 @@ describe("auth.service", () => {
     });
   });
 });
-

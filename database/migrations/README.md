@@ -36,8 +36,14 @@ new one, and there is no record of which.
 | 0009 | `0009_reports_indexes_and_geog.sql` | in PR, issue #65 |
 | 0010 | `0010_reports_rls_hardening.sql` | in PR, issue #66 |
 | 0011 | `0011_create_report_validations.sql` | in PR, issue #72 |
+| 0012 | `0012_tickets_add_fare.sql` | on `dev` |
+| 0013 | `0013_tickets_unique_generated_per_trip.sql` | on `dev` |
+| 0014 | `0014_senior_verification_follow_ups.sql` | on `dev` |
+| 0015 | `0015_scan_ticket_trip_state.sql` | on `dev` |
+| 0016 | `0016_create_buses_table.sql` | on `dev` |
+| 0017 | `0017_allow_multiple_tickets_per_passenger_trip.sql` | local change |
 
-Next free prefix: **0012**.
+Next free prefix: **0018**.
 
 ## The 0005 collision
 

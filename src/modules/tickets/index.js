@@ -138,20 +138,6 @@ class TicketService {
       );
     }
 
-    const existingTicket =
-      await this.ticketRepository.findGeneratedByPassengerAndTrip(
-        passengerId,
-        payload.trip_id,
-      );
-
-    if (existingTicket) {
-      throw new AppError(
-        HTTP_STATUS.CONFLICT,
-        ERROR_CODES.TICKET_ALREADY_GENERATED,
-        "The passenger already holds a generated ticket for this trip.",
-      );
-    }
-
     const isSenior = await this.isSeniorPassenger(passengerId);
 
     if (!isSenior) {

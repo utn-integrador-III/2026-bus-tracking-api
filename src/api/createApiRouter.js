@@ -14,6 +14,7 @@ const mapIncidentsRouter = require("../../routes/mapIncidentsRouter");
 const {
   createAdminBusesRouter,
   createAdminStopsRouter,
+  createPassengerStopsRouter,
   createAdminIncidentsRouter,
   createAdminTelemetryRouter,
   createAdminUsersRouter,
@@ -34,6 +35,7 @@ function createApiRouter() {
   router.use("/incidents/map", mapIncidentsRouter);
   router.use("/admin/buses", createAdminBusesRouter());
   router.use("/admin/stops", createAdminStopsRouter());
+  router.use("/passenger/stops", createPassengerStopsRouter());
   router.use("/admin/incidents", createAdminIncidentsRouter());
   router.use("/admin/telemetry", createAdminTelemetryRouter());
   router.use("/admin/users", createAdminUsersRouter());
