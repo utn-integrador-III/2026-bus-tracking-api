@@ -6,6 +6,7 @@ jest.mock("../../services/driver.service", () => ({
   createDriver: jest.fn(),
   updateDriver: jest.fn(),
   deactivateDriver: jest.fn(),
+  reactivateDriver: jest.fn(),
 }));
 
 jest.mock("../../database/supabaseClient", () => ({
@@ -112,6 +113,30 @@ describe("admin driver routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.isActive).toBe(false);
+  });
+
+  test("POST /api/admin/drivers/:id/reactivate reactivates a driver", async () => {
+    driverService.reactivateDriver.mockResolvedValue({
+      ...driverResponse,
+      isActive: true,
+    });
+
+    const response = await request(app)
+      .post(`/api/admin/drivers/${validUserId}/reactivate`)
+      .set("Authorization", AUTH_HEADER);
+
+    expect(response.status).toBe(200);
+    expect(response.body.isActive).toBe(true);
+    expect(driverService.reactivateDriver).toHaveBeenCalledWith(validUserId);
+  });
+
+  test("POST /api/admin/drivers/:id/reactivate rejects invalid id", async () => {
+    const response = await request(app)
+      .post("/api/admin/drivers/no-uuid/reactivate")
+      .set("Authorization", AUTH_HEADER);
+
+    expect(response.status).toBe(400);
+    expect(driverService.reactivateDriver).not.toHaveBeenCalled();
   });
 
   test("POST /api/admin/drivers rejects invalid payload", async () => {
