@@ -105,9 +105,14 @@ const seniorDocumentUploadUrlSchema = z
   })
   .strict();
 
+const seniorPreRegistrationUploadUrlSchema = seniorDocumentUploadUrlSchema.extend({
+  email,
+});
+
 module.exports = {
   registerPassengerSchema,
   loginSchema,
   oauthStartSchema,
   seniorDocumentUploadUrlSchema,
+  seniorPreRegistrationUploadUrlSchema,
 };

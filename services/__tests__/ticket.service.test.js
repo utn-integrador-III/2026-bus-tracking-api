@@ -108,7 +108,7 @@ describe("TicketService", () => {
     expect(decodedPayload.signature).toEqual(expect.any(String));
   });
 
-  test("rejects a second checkout for the same passenger and trip", async () => {
+  test("allows another checkout for the same passenger and trip", async () => {
     const existingTicket = {
       id: TICKET_ID,
       passenger_id: PASSENGER_ID,
@@ -125,8 +125,16 @@ describe("TicketService", () => {
       findGeneratedByPassengerAndTrip: jest
         .fn()
         .mockResolvedValue(existingTicket),
-      createTicket: jest.fn(),
-      updateTicketQrPayload: jest.fn(),
+      createTicket: jest.fn().mockResolvedValue(existingTicket),
+      updateTicketQrPayload: jest.fn().mockImplementation(
+        (ticketId, qrPayload, qrToken) =>
+          Promise.resolve({
+            ...existingTicket,
+            id: ticketId,
+            qr_payload: qrPayload,
+            qr_token: qrToken,
+          }),
+      ),
     };
 
     const passengerRepository = {
@@ -139,19 +147,18 @@ describe("TicketService", () => {
       tripRepository,
     });
 
-    await expect(
-      service.checkout(PASSENGER_ID, { trip_id: TRIP_ID }),
-    ).rejects.toMatchObject({
-      statusCode: 409,
-      code: "TICKET_ALREADY_GENERATED",
+    const checkoutPromise = service.checkout(PASSENGER_ID, {
+      trip_id: TRIP_ID,
     });
 
-    expect(ticketRepository.findGeneratedByPassengerAndTrip).toHaveBeenCalledWith(
-      PASSENGER_ID,
-      TRIP_ID,
-    );
-    expect(ticketRepository.createTicket).not.toHaveBeenCalled();
-    expect(ticketRepository.updateTicketQrPayload).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(1500);
+
+    const ticket = await checkoutPromise;
+
+    expect(ticketRepository.findGeneratedByPassengerAndTrip).not.toHaveBeenCalled();
+    expect(ticketRepository.createTicket).toHaveBeenCalled();
+    expect(ticketRepository.updateTicketQrPayload).toHaveBeenCalled();
+    expect(ticket.qr_payload).not.toBe(existingTicket.qr_payload);
   });
 
   test("falls back to the non-senior path when the passenger lookup fails", async () => {

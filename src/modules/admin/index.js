@@ -12,6 +12,7 @@ const requireRole = require("../../../middleware/requireRole");
 const {
   idParamSchema,
   listStopsQuerySchema,
+  passengerStopsQuerySchema,
   stopSchema,
   updateStopSchema,
   listIncidentsQuerySchema,
@@ -427,6 +428,23 @@ function createAdminStopsRouter(dependencies = {}) {
   return router;
 }
 
+function createPassengerStopsRouter(dependencies = {}) {
+  const { adminController } = createAdminModule(dependencies);
+  const router = express.Router();
+
+  router.use(requireAuth, requireRole(ROLES.PASSENGER));
+  router.get(
+    "/",
+    validate(
+      { query: passengerStopsQuerySchema },
+      ERROR_CODES.STOP_VALIDATION_FAILED,
+    ),
+    adminController.listStops,
+  );
+
+  return router;
+}
+
 function createAdminIncidentsRouter(dependencies = {}) {
   const { adminController } = createAdminModule(dependencies);
   const router = express.Router();
@@ -494,6 +512,7 @@ module.exports = {
   createAdminModule,
   createAdminBusesRouter,
   createAdminStopsRouter,
+  createPassengerStopsRouter,
   createAdminIncidentsRouter,
   createAdminTelemetryRouter,
   createAdminUsersRouter,
