@@ -28,11 +28,18 @@ async function enrichRequest(request) {
     return null;
   }
 
-  const user = await userRepository.findUserById(request.passenger_id);
-  const passenger = await passengerRepository.findPassengerById(request.passenger_id);
+  const [user, passenger, documentImageUrl] = await Promise.all([
+    userRepository.findUserById(request.passenger_id),
+    passengerRepository.findPassengerById(request.passenger_id),
+    seniorVerificationRepository.createSignedDocumentUrl(
+      request.document_image_bucket,
+      request.document_image_path,
+    ),
+  ]);
 
   return {
     ...request,
+    document_image_url: documentImageUrl,
     user: user
       ? {
           id: user.id,

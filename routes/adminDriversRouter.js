@@ -46,4 +46,10 @@ router.delete(
   controller.deactivateDriver,
 );
 
+router.post(
+  "/:id/reactivate",
+  validate({ params: idParamSchema }, ERROR_CODES.DRIVER_VALIDATION_FAILED),
+  controller.reactivateDriver,
+);
+
 module.exports = router;

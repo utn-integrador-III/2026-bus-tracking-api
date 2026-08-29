@@ -9,10 +9,20 @@ const {
   loginSchema,
   oauthStartSchema,
   seniorDocumentUploadUrlSchema,
+  seniorPreRegistrationUploadUrlSchema,
 } = require("../models/auth.model");
 const { ERROR_CODES } = require("../constants/errorCodes");
 
 const router = express.Router();
+
+router.post(
+  "/senior-document/pre-register-upload-url",
+  validate(
+    { body: seniorPreRegistrationUploadUrlSchema },
+    ERROR_CODES.AUTH_VALIDATION_FAILED,
+  ),
+  controller.createSeniorPreRegistrationUploadUrl,
+);
 
 router.post(
   "/senior-document/upload-url",
