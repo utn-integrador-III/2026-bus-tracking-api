@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/utn-integrador-III/2026-bus-tracking-api#readme",
   "dependencies": {
-    "@supabase/supabase-js": "^2.110.8",
+    "@supabase/supabase-js": "^2.112.4",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
